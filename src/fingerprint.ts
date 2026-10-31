@@ -10,6 +10,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { foldAsync } from '@ngwes/mini-fp';
 import type { Config, SkillSuite } from './types.js';
 
 /**
@@ -18,12 +19,10 @@ import type { Config, SkillSuite } from './types.js';
  * nor the order nor the split between files can be shifted without changing the result.
  */
 export async function fingerprint(files: string[], root: string): Promise<string> {
-  const hash = createHash('sha256');
-  for (const file of files) {
+  const hash = await foldAsync(files, createHash('sha256'), async (partial, file) => {
     const content = lineFeeds(await readFile(file));
-    hash.update(`${relativeName(root, file)}\0${content.length}\0`);
-    hash.update(content);
-  }
+    return partial.update(`${relativeName(root, file)}\0${content.length}\0`).update(content);
+  });
   return hash.digest('hex');
 }
 
