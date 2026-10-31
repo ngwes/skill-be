@@ -61,7 +61,9 @@ function select(skills: Skill[], only: string[], skillsDir: string): Skill[] {
   const known = only.map((name) =>
     skills.some((skill) => skill.name === name)
       ? Either.right<string, string>(name)
-      : Either.left<string, string>(`unknown skill "${name}" (skills in ${skillsDir}: ${available})`),
+      : Either.left<string, string>(
+          `unknown skill "${name}" (skills in ${skillsDir}: ${available})`,
+        ),
   );
   return valueOrThrow(
     traverseEither(known).map(() => skills.filter((skill) => only.includes(skill.name))),
@@ -98,7 +100,9 @@ function scenarioList(data: Option<unknown>): Checked<Scenario[]> {
     (value) => (isRecord(value) ? value.scenarios : undefined),
     () => undefined,
   );
-  if (!Array.isArray(list) || list.length === 0) return fail('"scenarios" must be a non-empty list');
+  if (!Array.isArray(list) || list.length === 0) {
+    return fail('"scenarios" must be a non-empty list');
+  }
 
   return sequenceValidate(
     list.map((raw, index) =>

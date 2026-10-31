@@ -288,7 +288,10 @@ function labelled(label: string, line: string): Option<string> {
 }
 
 /** The last line with a `<label>:` value: its index and the value. */
-function lastLabelled(lines: readonly string[], label: string): Option<{ at: number; value: string }> {
+function lastLabelled(
+  lines: readonly string[],
+  label: string,
+): Option<{ at: number; value: string }> {
   for (let at = lines.length - 1; at >= 0; at--) {
     const value = labelled(label, lines[at] as string);
     if (value.isSome()) return value.map((found) => ({ at, value: found }));

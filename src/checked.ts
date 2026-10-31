@@ -45,7 +45,7 @@ export function firstProblem<T>(checked: Checked<T>): Either<string, T> {
   );
 }
 
-/** The value, or a `ConfigError` with the message: where a checked result meets code that throws. */
+/** The value, or a `ConfigError` with the message: where a checked result meets throwing code. */
 export function valueOrThrow<T>(result: Either<string, T>): T {
   return result.match(
     (value) => value,

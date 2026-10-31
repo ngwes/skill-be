@@ -164,7 +164,10 @@ function resultFile(data: unknown): Checked<ResultFile> {
         skills: object(root.skills, '"skills"').bind((skills) =>
           all<Record<string, SkillEntry>>(
             Object.fromEntries(
-              Object.entries(skills).map(([name, raw]) => [name, parseEntry(raw, `skills.${name}`)]),
+              Object.entries(skills).map(([name, raw]) => [
+                name,
+                parseEntry(raw, `skills.${name}`),
+              ]),
             ),
           ),
         ),

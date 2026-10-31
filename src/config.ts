@@ -166,7 +166,8 @@ function parseTimeout(raw: unknown): Checked<number> {
       seconds <= MAX_TIMEOUT_SECONDS,
       seconds,
       () =>
-        `"timeoutSeconds" must be at most ${MAX_TIMEOUT_SECONDS} (about 24.8 days) (got ${seconds})`,
+        `"timeoutSeconds" must be at most ${MAX_TIMEOUT_SECONDS} (about 24.8 days) ` +
+        `(got ${seconds})`,
     ),
   );
 }
