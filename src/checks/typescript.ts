@@ -7,10 +7,12 @@ import type {
   CompilerOptions,
   Diagnostic,
   Extension,
+  ResolvedModuleWithFailedLookupLocations,
   SourceFile,
   Symbol as TsSymbol,
   TypeChecker,
 } from 'typescript';
+import { Option, Try, TryAsync, repeatWhile } from '@ngwes/mini-fp';
 import { ConfigError } from '../types.js';
 
 /**
@@ -33,15 +35,18 @@ export type TypescriptDeps = {
  * this one lookup, so they always agree.
  */
 export function resolveTypescript(root: string): string | undefined {
-  // `createRequire` needs a file; the name does not have to exist.
-  for (const base of [path.join(root, 'noop.js'), import.meta.url]) {
-    try {
-      return createRequire(base).resolve('typescript');
-    } catch {
-      // Not installed there; try the next place.
-    }
-  }
-  return undefined;
+  // `createRequire` needs a file; the name does not have to exist. A base it is not installed
+  // under is none, and the next place is tried.
+  const from = (base: string): Option<string> =>
+    Try.run(() => Option.some(createRequire(base).resolve('typescript'))).onFail(
+      Option.none<string>(),
+    );
+  return from(path.join(root, 'noop.js'))
+    .bindNone(() => from(import.meta.url))
+    .match<string | undefined>(
+      (file) => file,
+      () => undefined,
+    );
 }
 
 /**
@@ -54,14 +59,12 @@ export async function loadTypescript(
   deps: TypescriptDeps,
 ): Promise<TypeScript> {
   const load = deps.loadTypescript ?? (() => importTypescript(root));
-  try {
-    return await load();
-  } catch (error) {
+  return TryAsync.runAsync(load).onFail((error) => {
     throw new ConfigError(
       `the ${check} preset needs the "typescript" package, which could not be loaded ` +
         `(${(error as Error).message}); install it: npm install --save-dev typescript`,
     );
-  }
+  });
 }
 
 async function importTypescript(root: string): Promise<TypeScript> {
@@ -110,23 +113,25 @@ export function compilerOptions(ts: TypeScript): CompilerOptions {
 export function resolveEntry(file: string, root: string, what: string): Library {
   const entry = path.resolve(root, file);
   if (!existsSync(entry)) throw new ConfigError(`${what} does not exist: ${entry}`);
-  const specifier = packageName(path.dirname(entry)) ?? toTsPath(entry);
+  const specifier = packageName(path.dirname(entry)).orElse(() => toTsPath(entry));
   return { specifier, entry: toTsPath(entry) };
 }
 
-function packageName(dir: string): string | undefined {
-  for (let current = dir; ; current = path.dirname(current)) {
-    const file = path.join(current, 'package.json');
-    if (existsSync(file)) {
-      try {
-        const name = (JSON.parse(readFileSync(file, 'utf8')) as { name?: unknown }).name;
-        return typeof name === 'string' && name !== '' ? name : undefined;
-      } catch {
-        return undefined;
-      }
-    }
-    if (path.dirname(current) === current) return undefined;
-  }
+/** The name in the nearest `package.json` up from `dir`; none when it has none or no such file. */
+function packageName(dir: string): Option<string> {
+  const nearest = repeatWhile(
+    () => dir,
+    (current) =>
+      !existsSync(path.join(current, 'package.json')) && path.dirname(current) !== current,
+    (current) => path.dirname(current),
+  );
+  return Option.from(path.join(nearest, 'package.json'), (file) => !existsSync(file)).bind(
+    (file) =>
+      Try.run(() => (JSON.parse(readFileSync(file, 'utf8')) as { name?: unknown }).name).match(
+        (name) => (typeof name === 'string' && name !== '' ? Option.some(name) : Option.none()),
+        Option.none<string>(),
+      ),
+  );
 }
 
 /** TypeScript names files with forward slashes. */
@@ -143,7 +148,7 @@ export type Host = { compilerHost: CompilerHost; files: Map<string, string> };
 export function createHost(
   ts: TypeScript,
   options: CompilerOptions,
-  library: Library | undefined,
+  library: Option<Library>,
 ): Host {
   const files = new Map<string, string>();
   const parsed = new Map<string, SourceFile | undefined>();
@@ -161,15 +166,24 @@ export function createHost(
     }
     return parsed.get(fileName);
   };
+  /** The library's source entry, when it is given as a path. */
+  const entry = library.bind(({ specifier, entry: file }) =>
+    Option.from(file).map((resolvedFileName) => ({ specifier, resolvedFileName })),
+  );
   host.resolveModuleNameLiterals = (literals, containingFile, redirected, settings) =>
-    literals.map(({ text }) => {
-      if (library?.entry !== undefined && text === library.specifier) {
-        const resolvedFileName = library.entry;
-        const extension = extensionOf(resolvedFileName);
-        return { resolvedModule: { resolvedFileName, extension, isExternalLibraryImport: false } };
-      }
-      return ts.resolveModuleName(text, containingFile, settings, host, undefined, redirected);
-    });
+    literals.map(({ text }) =>
+      entry
+        .filter(({ specifier }) => specifier === text)
+        .match<ResolvedModuleWithFailedLookupLocations>(
+          ({ resolvedFileName }) => {
+            const extension = extensionOf(resolvedFileName);
+            return {
+              resolvedModule: { resolvedFileName, extension, isExternalLibraryImport: false },
+            };
+          },
+          () => ts.resolveModuleName(text, containingFile, settings, host, undefined, redirected),
+        ),
+    );
   return { compilerHost: host, files };
 }
 
@@ -195,15 +209,17 @@ export function libraryExports(
   host.files.set(probe, `export * from ${JSON.stringify(library.specifier)};`);
   const program = ts.createProgram({ rootNames: [probe], options, host: host.compilerHost });
   const file = program.getSourceFile(probe)!;
-  const error = program.getSemanticDiagnostics(file)[0];
-  if (error !== undefined) {
+  Option.from(program.getSemanticDiagnostics(file)[0]).onSome((error) => {
     throw new ConfigError(
       `cannot load ${what} "${library.entry ?? library.specifier}": ${format(ts, error)}`,
     );
-  }
+  });
   const checker = program.getTypeChecker();
-  const module = checker.getSymbolAtLocation(file);
-  return { checker, symbols: module === undefined ? [] : checker.getExportsOfModule(module) };
+  const symbols = Option.from(checker.getSymbolAtLocation(file)).match(
+    (module) => checker.getExportsOfModule(module),
+    () => [],
+  );
+  return { checker, symbols };
 }
 
 function message(ts: TypeScript, diagnostic: Diagnostic): string {

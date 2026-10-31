@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { Option, TryAsync, foldAsync } from '@ngwes/mini-fp';
 import type { BindingName, Diagnostic, Node, SourceFile, Statement } from 'typescript';
 import { splitCommandLine } from '../adapters/command.js';
+import { valueOrThrow } from '../checked.js';
 import { runProcess } from '../process.js';
 import { ConfigError, type SkillSuite, type TypecheckConfig } from '../types.js';
 import { extractCodeBlocks, type CodeBlock } from './code-blocks.js';
@@ -64,10 +66,10 @@ export async function typecheckSkill(
   deps: TypecheckDeps = {},
 ): Promise<TypecheckResult> {
   const blocks = extractCodeBlocks(suite.skillText).filter((block) => !block.skip);
-  const { problems, warnings } =
-    cfg.command !== undefined
-      ? await runCommand(suite, blocks, cfg.command, root)
-      : await compile(await loadTypescript('typecheck', root, deps), suite, blocks, cfg, root);
+  const { problems, warnings } = await Option.from(cfg.command).matchAsync(
+    (command) => runCommand(suite, blocks, command, root),
+    async () => compile(await loadTypescript('typecheck', root, deps), suite, blocks, cfg, root),
+  );
   return { ok: problems.length === 0, problems, warnings };
 }
 
@@ -83,38 +85,43 @@ export async function validateTypecheck(
   root: string,
   deps: TypecheckDeps = {},
 ): Promise<void> {
-  if (cfg.command !== undefined) {
-    commandWords(cfg.command);
-    return;
-  }
-  const ts = await loadTypescript('typecheck', root, deps);
-  for (const [skill, prelude] of Object.entries(cfg.preludes ?? {})) {
-    preludeFile(skill, prelude, root);
-  }
-  if (cfg.library === undefined) return;
-  const library = resolveLibrary(cfg.library, root);
-  const options = compilerOptions(ts);
-  const virtualDir = toTsPath(path.join(path.resolve(root), '.skill-be-typecheck'));
-  const host = createHost(ts, options, library);
-  libraryExports(ts, host, options, library, virtualDir, TYPECHECK_LIBRARY);
+  await Option.from(cfg.command).matchAsync(
+    (command) => void commandWords(command),
+    async () => {
+      const ts = await loadTypescript('typecheck', root, deps);
+      for (const [skill, prelude] of Object.entries(cfg.preludes ?? {})) {
+        preludeFile(skill, prelude, root);
+      }
+      Option.from(cfg.library).onSome((name) => {
+        const library = resolveLibrary(name, root);
+        const options = compilerOptions(ts);
+        const virtualDir = toTsPath(path.join(path.resolve(root), '.skill-be-typecheck'));
+        const host = createHost(ts, options, Option.some(library));
+        libraryExports(ts, host, options, library, virtualDir, TYPECHECK_LIBRARY);
+      });
+    },
+  );
 }
 
 /** The command and its arguments, from `checks.typecheck.command`. */
 function commandWords(command: string): [string, ...string[]] {
-  const [bin, ...args] = splitCommandLine(command, '"checks.typecheck.command"');
-  if (bin === undefined || bin === '') {
-    throw new ConfigError(`"checks.typecheck.command" has no command: ${command}`);
-  }
+  const [first, ...args] = splitCommandLine(command, '"checks.typecheck.command"');
+  const bin = valueOrThrow(
+    Option.from(first)
+      .filter((word) => word !== '')
+      .toEither(() => `"checks.typecheck.command" has no command: ${command}`),
+  );
   return [bin, ...args];
 }
 
 /** The absolute path of a skill's prelude, which must exist. */
 function preludeFile(skill: string, prelude: string, root: string): string {
   const file = path.resolve(root, prelude);
-  if (!existsSync(file)) {
-    throw new ConfigError(`the typecheck prelude of skill "${skill}" does not exist: ${file}`);
-  }
-  return file;
+  return valueOrThrow(
+    Option.from(file, (candidate) => !existsSync(candidate)).toEither(
+      () => `the typecheck prelude of skill "${skill}" does not exist: ${file}`,
+    ),
+  );
 }
 
 const TYPECHECK_LIBRARY = 'the typecheck library';
@@ -140,31 +147,43 @@ async function runCommand(
 ): Promise<{ problems: string[]; warnings: string[] }> {
   const [bin, ...args] = commandWords(command);
 
-  const problems: string[] = [];
-  for (const block of blocks.filter((candidate) => candidate.lang !== '')) {
-    const result = await runProcess({
-      bin,
-      args,
-      stdin: block.code + '\n',
-      timeoutMs: COMMAND_TIMEOUT_MS,
-      cwd: root,
-      env: { ...process.env, SKILL_BE_LANG: block.lang, SKILL_BE_SKILL: suite.name },
-    }).catch((error: unknown) => {
+  /** The problem with one block, none when the command passes it. */
+  const check = async (block: CodeBlock): Promise<Option<string>> => {
+    const result = await TryAsync.runAsync(() =>
+      runProcess({
+        bin,
+        args,
+        stdin: block.code + '\n',
+        timeoutMs: COMMAND_TIMEOUT_MS,
+        cwd: root,
+        env: { ...process.env, SKILL_BE_LANG: block.lang, SKILL_BE_SKILL: suite.name },
+      }),
+    ).onFail((error) => {
       throw new ConfigError(`the typecheck command failed to start (${(error as Error).message})`);
     });
     if (result.timedOut) {
-      problems.push(
+      return Option.some(
         `${where(suite, block.line)}: the typecheck command timed out after ` +
           `${COMMAND_TIMEOUT_MS / 1000} s`,
       );
-    } else if (result.code !== 0) {
-      const output = (result.stderr.trim() || result.stdout.trim()).slice(-2000);
-      problems.push(
-        `${where(suite, block.line)}: the typecheck command failed ` +
-          `(exit code ${result.code})${output === '' ? '' : `: ${output}`}`,
-      );
     }
-  }
+    const output = (result.stderr.trim() || result.stdout.trim()).slice(-2000);
+    return Option.from(
+      `${where(suite, block.line)}: the typecheck command failed ` +
+        `(exit code ${result.code})${output === '' ? '' : `: ${output}`}`,
+      () => result.code === 0,
+    );
+  };
+
+  const problems = await foldAsync<CodeBlock, string[]>(
+    blocks.filter((candidate) => candidate.lang !== ''),
+    [],
+    async (found, block) =>
+      (await check(block)).match(
+        (problem) => [...found, problem],
+        () => found,
+      ),
+  );
   return { problems, warnings: [] };
 }
 
@@ -179,18 +198,19 @@ async function compile(
   root: string,
 ): Promise<{ problems: string[]; warnings: string[] }> {
   const options = compilerOptions(ts);
-  const library = cfg.library === undefined ? undefined : resolveLibrary(cfg.library, root);
-  const prelude = cfg.preludes?.[suite.name];
-  const preludePath = prelude === undefined ? undefined : preludeFile(suite.name, prelude, root);
+  const library = Option.from(cfg.library).map((name) => resolveLibrary(name, root));
+  const preludePath = Option.from(cfg.preludes?.[suite.name]).map((prelude) =>
+    preludeFile(suite.name, prelude, root),
+  );
 
   // Virtual files live under the root, so a package name resolves from the root's node_modules.
   const virtualDir = toTsPath(path.join(path.resolve(root), '.skill-be-typecheck', suite.name));
   const host = createHost(ts, options, library);
 
-  const exports =
-    library === undefined
-      ? []
-      : libraryExports(ts, host, options, library, virtualDir, TYPECHECK_LIBRARY).symbols;
+  const exports = library.match(
+    (found) => libraryExports(ts, host, options, found, virtualDir, TYPECHECK_LIBRARY).symbols,
+    () => [],
+  );
   const exportNames = exports.map((symbol) => symbol.name);
 
   const warnings: string[] = [];
@@ -198,24 +218,26 @@ async function compile(
   /** The imports of the earlier blocks: local name → an import statement binding only it. */
   const carried = new Map<string, string>();
   for (const block of blocks.filter((candidate) => TYPESCRIPT_LANGS.includes(candidate.lang))) {
-    const syntaxError = firstSyntaxError(ts, block.code);
-    if (syntaxError !== undefined) {
-      warnings.push(
-        `${where(suite, block.line)}: the block does not parse, skipped (${syntaxError})`,
-      );
-      continue;
-    }
-    const source = ts.createSourceFile('block.ts', block.code, ts.ScriptTarget.ESNext, true);
-    const declared = topLevelNames(ts, source.statements);
-    const header = headerFor(declared, carried, exportNames, library);
-    const fileName = `${virtualDir}/block-line-${block.line}.ts`;
-    host.files.set(fileName, header + '\n' + block.code);
-    units.push({ block, fileName });
-    for (const [name, statement] of importBindings(ts, source)) carried.set(name, statement);
+    firstSyntaxError(ts, block.code).match(
+      (syntaxError) => {
+        warnings.push(
+          `${where(suite, block.line)}: the block does not parse, skipped (${syntaxError})`,
+        );
+      },
+      () => {
+        const source = ts.createSourceFile('block.ts', block.code, ts.ScriptTarget.ESNext, true);
+        const declared = topLevelNames(ts, source.statements);
+        const header = headerFor(declared, carried, exportNames, library);
+        const fileName = `${virtualDir}/block-line-${block.line}.ts`;
+        host.files.set(fileName, header + '\n' + block.code);
+        units.push({ block, fileName });
+        for (const [name, statement] of importBindings(ts, source)) carried.set(name, statement);
+      },
+    );
   }
 
   const rootNames = units.map((unit) => unit.fileName);
-  if (preludePath !== undefined) rootNames.push(toTsPath(preludePath));
+  preludePath.onSome((file) => rootNames.push(toTsPath(file)));
   const program = ts.createProgram({ rootNames, options, host: host.compilerHost });
 
   const problems: string[] = [];
@@ -228,8 +250,8 @@ async function compile(
       problems.push(`${where(suite, unit.block.line + line)}: ${format(ts, diagnostic)}`);
     }
   }
-  if (preludePath !== undefined) {
-    const file = program.getSourceFile(toTsPath(preludePath))!;
+  preludePath.onSome((preludeFile) => {
+    const file = program.getSourceFile(toTsPath(preludeFile))!;
     const diagnostics = [
       ...program.getSyntacticDiagnostics(file),
       ...program.getSemanticDiagnostics(file),
@@ -237,24 +259,23 @@ async function compile(
     for (const diagnostic of failing(ts, diagnostics)) {
       const line = file.getLineAndCharacterOfPosition(diagnostic.start ?? 0).line + 1;
       problems.push(
-        `skill "${suite.name}", prelude ${preludePath} line ${line}: ${format(ts, diagnostic)}`,
+        `skill "${suite.name}", prelude ${preludeFile} line ${line}: ${format(ts, diagnostic)}`,
       );
     }
-  }
+  });
   return { problems, warnings };
 }
 
-/** The first syntax error of a block, formatted, or undefined when the block parses. */
-function firstSyntaxError(ts: TypeScript, code: string): string | undefined {
+/** The first syntax error of a block, formatted; none when the block parses. */
+function firstSyntaxError(ts: TypeScript, code: string): Option<string> {
   const { diagnostics = [] } = ts.transpileModule(code, {
     fileName: 'block.ts',
     reportDiagnostics: true,
     compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext },
   });
-  const error = diagnostics.find(
-    (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
-  );
-  return error === undefined ? undefined : format(ts, error);
+  return Option.from(
+    diagnostics.find((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error),
+  ).map((error) => format(ts, error));
 }
 
 /**
@@ -265,13 +286,15 @@ function headerFor(
   declared: Set<string>,
   carried: Map<string, string>,
   exports: string[],
-  library: Library | undefined,
+  library: Option<Library>,
 ): string {
   const statements = [...carried].filter(([name]) => !declared.has(name)).map(([, text]) => text);
   const names = exports.filter((name) => !declared.has(name) && !carried.has(name));
-  if (library !== undefined && names.length > 0) {
-    statements.push(`import { ${names.join(', ')} } from ${JSON.stringify(library.specifier)};`);
-  }
+  library
+    .filter(() => names.length > 0)
+    .onSome(({ specifier }) => {
+      statements.push(`import { ${names.join(', ')} } from ${JSON.stringify(specifier)};`);
+    });
   statements.push('export {};');
   return statements.join(' ');
 }
@@ -362,20 +385,22 @@ function failing(ts: TypeScript, diagnostics: readonly Diagnostic[]): Diagnostic
 function tolerated(ts: TypeScript, diagnostic: Diagnostic): boolean {
   if (TOLERATED.has(diagnostic.code)) return true;
   if (!ARITHMETIC_OPERAND.includes(diagnostic.code)) return false;
-  const parent = nodeOf(ts, diagnostic)?.parent;
-  return (
-    parent !== undefined &&
-    ts.isBinaryExpression(parent) &&
-    parent.operatorToken.kind === ts.SyntaxKind.SlashToken &&
-    ts.isCallExpression(parent.left) &&
-    ts.isCallExpression(parent.right)
-  );
+  return nodeOf(ts, diagnostic)
+    .bind((node) => Option.from(node.parent))
+    .filter(
+      (parent) =>
+        ts.isBinaryExpression(parent) &&
+        parent.operatorToken.kind === ts.SyntaxKind.SlashToken &&
+        ts.isCallExpression(parent.left) &&
+        ts.isCallExpression(parent.right),
+    )
+    .isSome();
 }
 
 /** The outermost node whose text is exactly the span a diagnostic points at. */
-function nodeOf(ts: TypeScript, diagnostic: Diagnostic): Node | undefined {
+function nodeOf(ts: TypeScript, diagnostic: Diagnostic): Option<Node> {
   const { file, start, length } = diagnostic;
-  if (file === undefined || start === undefined || length === undefined) return undefined;
+  if (file === undefined || start === undefined || length === undefined) return Option.none();
   let match: Node | undefined;
   const visit = (node: Node): void => {
     if (match !== undefined || start < node.pos || start >= node.end) return;
@@ -383,5 +408,5 @@ function nodeOf(ts: TypeScript, diagnostic: Diagnostic): Node | undefined {
     else ts.forEachChild(node, visit);
   };
   ts.forEachChild(file, visit);
-  return match;
+  return Option.from(match);
 }
