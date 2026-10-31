@@ -1,3 +1,5 @@
+import { Option } from '@ngwes/mini-fp';
+import { valueOrThrow } from '../checked.js';
 import { runProcess } from '../process.js';
 import { ConfigError } from '../types.js';
 import { requiredSetting, runCli, type Adapter } from './common.js';
@@ -10,10 +12,12 @@ import { requiredSetting, runCli, type Adapter } from './common.js';
  */
 export const commandAdapter: Adapter = async (prompt, { settings, timeoutMs, cwd }) => {
   const run = requiredSetting(settings, 'run');
-  const [bin, ...args] = splitCommandLine(run, `the command adapter's "run" setting`);
-  if (bin === undefined || bin === '') {
-    throw new ConfigError(`the command adapter's "run" setting has no command: ${run}`);
-  }
+  const [first, ...args] = splitCommandLine(run, `the command adapter's "run" setting`);
+  const bin = valueOrThrow(
+    Option.from(first)
+      .filter((word) => word !== '')
+      .toEither(() => `the command adapter's "run" setting has no command: ${run}`),
+  );
   const result = await runCli(
     runProcess,
     { bin, args, stdin: prompt, timeoutMs, cwd },

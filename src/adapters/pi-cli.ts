@@ -1,5 +1,7 @@
+import { Option } from '@ngwes/mini-fp';
+import { valueOrThrow } from '../checked.js';
 import { runProcess } from '../process.js';
-import { ConfigError, type AdapterSettings } from '../types.js';
+import type { AdapterSettings } from '../types.js';
 import {
   apiKeyFromEnv,
   binSetting,
@@ -54,14 +56,15 @@ export function buildArgs(settings: AdapterSettings): string[] {
 const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 function thinkingLevel(settings: AdapterSettings): string {
-  const level = settings.thinking ?? 'off';
-  if (typeof level !== 'string' || !THINKING_LEVELS.includes(level)) {
-    throw new ConfigError(
-      `the pi-cli adapter's "thinking" setting must be one of ${THINKING_LEVELS.join(', ')} ` +
-        `(got ${JSON.stringify(level)})`,
-    );
-  }
-  return level;
+  const level: unknown = Option.from(settings.thinking).orElse('off');
+  return valueOrThrow(
+    Option.from(typeof level === 'string' && THINKING_LEVELS.includes(level) ? level : undefined)
+      .toEither(
+        () =>
+          `the pi-cli adapter's "thinking" setting must be one of ${THINKING_LEVELS.join(', ')} ` +
+          `(got ${JSON.stringify(level)})`,
+      ),
+  );
 }
 
 /**
@@ -73,17 +76,20 @@ function thinkingLevel(settings: AdapterSettings): string {
 export function createPiCli(run: Runner = runProcess): Adapter {
   return async (prompt, { settings, timeoutMs, cwd }) => {
     const args = buildArgs(settings);
-    const key = apiKeyFromEnv(settings);
+    const key = Option.from(apiKeyFromEnv(settings));
     const result = await runCli(
       run,
       {
         bin: binSetting(settings, 'pi'),
-        args: key === undefined ? args : [...args, '--api-key', key],
+        args: key.match(
+          (value) => [...args, '--api-key', value],
+          () => args,
+        ),
         stdin: prompt,
         timeoutMs,
         cwd,
       },
-      { label: `pi-cli (${settings.id})`, secrets: key === undefined ? [] : [key] },
+      { label: `pi-cli (${settings.id})`, secrets: key.match((value) => [value], () => []) },
     );
     return result.stdout.trim();
   };
