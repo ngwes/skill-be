@@ -8,7 +8,7 @@ import { skillFingerprint } from '../src/fingerprint.js';
 import {
   mergeResults,
   readResultFile,
-  skillbeVersion,
+  skillBeVersion,
   verifyResults,
   writeResultFile,
   type ResultFile,
@@ -26,7 +26,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(os.tmpdir(), 'skillbe-result-'));
+  dir = await mkdtemp(path.join(os.tmpdir(), 'skill-be-result-'));
 });
 
 afterEach(async () => {
@@ -43,28 +43,28 @@ const entry = (overrides: Partial<SkillEntry> = {}): SkillEntry => ({
   ...overrides,
 });
 
-const resultFile = (skills: Record<string, SkillEntry>, skillbeVersion = '1.0.0'): ResultFile => ({
-  skillbeVersion,
+const resultFile = (skills: Record<string, SkillEntry>, skillBeVersion = '1.0.0'): ResultFile => ({
+  skillBeVersion,
   skills,
 });
 
-describe('skillbeVersion', () => {
+describe('skillBeVersion', () => {
   it("is the version in the package's own package.json", async () => {
     const manifest = JSON.parse(
       await readFile(new URL('../package.json', import.meta.url), 'utf8'),
     ) as { version: string };
 
-    expect(await skillbeVersion()).toBe(manifest.version);
+    expect(await skillBeVersion()).toBe(manifest.version);
   });
 });
 
 describe('readResultFile', () => {
   it('returns null when there is no such file', async () => {
-    expect(await readResultFile(path.join(dir, 'skillbe.result.json'))).toBeNull();
+    expect(await readResultFile(path.join(dir, 'skill-be.result.json'))).toBeNull();
   });
 
   it('reads what writeResultFile wrote', async () => {
-    const file = path.join(dir, 'skillbe.result.json');
+    const file = path.join(dir, 'skill-be.result.json');
     const written = resultFile({
       b: entry({ ready: false, reasons: ['**BLOCKED** (universal 0%): `s1`'] }),
       a: entry({ models: ['m1', 'm2'] }),
@@ -75,15 +75,15 @@ describe('readResultFile', () => {
   });
 
   const unreadable: [string, string, RegExp][] = [
-    ['a file that is not JSON', '{ "skillbeVersion": ', /JSON/],
+    ['a file that is not JSON', '{ "skillBeVersion": ', /JSON/],
     ['a file with merge conflict markers', '<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> x\n', /JSON/],
     ['a JSON value that is not an object', '[]', /object/],
-    ['a missing skillbeVersion', JSON.stringify({ skills: {} }), /skillbeVersion/],
-    ['a missing skills key', JSON.stringify({ skillbeVersion: '1.0.0' }), /"skills"/],
-    ['skills that is a list', JSON.stringify({ skillbeVersion: '1', skills: [] }), /"skills"/],
+    ['a missing skillBeVersion', JSON.stringify({ skills: {} }), /skillBeVersion/],
+    ['a missing skills key', JSON.stringify({ skillBeVersion: '1.0.0' }), /"skills"/],
+    ['skills that is a list', JSON.stringify({ skillBeVersion: '1', skills: [] }), /"skills"/],
     [
       'an entry that is not an object',
-      JSON.stringify({ skillbeVersion: '1', skills: { a: 1 } }),
+      JSON.stringify({ skillBeVersion: '1', skills: { a: 1 } }),
       /"skills\.a" must be an object/,
     ],
     ...(['date', 'fingerprint', 'ready', 'reasons', 'models', 'grader'] as const).map(
@@ -91,25 +91,25 @@ describe('readResultFile', () => {
         const { [key]: _omitted, ...rest } = entry();
         return [
           `an entry without ${key}`,
-          JSON.stringify({ skillbeVersion: '1', skills: { a: rest } }),
+          JSON.stringify({ skillBeVersion: '1', skills: { a: rest } }),
           new RegExp(`"skills\\.a\\.${key}"`),
         ];
       },
     ),
     [
       'reasons that are not strings',
-      JSON.stringify({ skillbeVersion: '1', skills: { a: { ...entry(), reasons: [1] } } }),
+      JSON.stringify({ skillBeVersion: '1', skills: { a: { ...entry(), reasons: [1] } } }),
       /"skills\.a\.reasons"/,
     ],
     [
       'a ready that is not a boolean',
-      JSON.stringify({ skillbeVersion: '1', skills: { a: { ...entry(), ready: 'yes' } } }),
+      JSON.stringify({ skillBeVersion: '1', skills: { a: { ...entry(), ready: 'yes' } } }),
       /"skills\.a\.ready"/,
     ],
   ];
 
   it.each(unreadable)('rejects %s, naming the file', async (_name, text, pattern) => {
-    const file = path.join(dir, 'skillbe.result.json');
+    const file = path.join(dir, 'skill-be.result.json');
     await writeFile(file, text);
 
     const error = await readResultFile(file).then(
@@ -123,7 +123,7 @@ describe('readResultFile', () => {
   });
 
   it('reads a file saved with a byte order mark', async () => {
-    const file = path.join(dir, 'skillbe.result.json');
+    const file = path.join(dir, 'skill-be.result.json');
     await writeFile(file, '﻿' + JSON.stringify(resultFile({ a: entry() })));
 
     expect(await readResultFile(file)).toEqual(resultFile({ a: entry() }));
@@ -132,7 +132,7 @@ describe('readResultFile', () => {
 
 describe('writeResultFile', () => {
   it('writes a stable key order, skills by name, two spaces and a final newline', async () => {
-    const file = path.join(dir, 'skillbe.result.json');
+    const file = path.join(dir, 'skill-be.result.json');
     // Built in a scrambled key order on purpose.
     const scrambled = {
       skills: {
@@ -153,7 +153,7 @@ describe('writeResultFile', () => {
           date: '2026-10-30',
         },
       },
-      skillbeVersion: '1.2.3',
+      skillBeVersion: '1.2.3',
     } as ResultFile;
 
     await writeResultFile(file, scrambled);
@@ -161,7 +161,7 @@ describe('writeResultFile', () => {
     expect(await readFile(file, 'utf8')).toBe(
       [
         '{',
-        '  "skillbeVersion": "1.2.3",',
+        '  "skillBeVersion": "1.2.3",',
         '  "skills": {',
         '    "alpha": {',
         '      "date": "2026-10-30",',
@@ -201,7 +201,7 @@ describe('writeResultFile', () => {
   });
 
   it('writes a temporary file beside the result file, then renames it over it', async () => {
-    const file = path.join(dir, 'skillbe.result.json');
+    const file = path.join(dir, 'skill-be.result.json');
     await writeFile(file, 'the old result\n');
     vi.mocked(fsp.writeFile).mockClear();
     vi.mocked(fsp.rename).mockClear();
@@ -214,11 +214,11 @@ describe('writeResultFile', () => {
     expect(path.dirname(written[0] as string)).toBe(dir);
     expect(vi.mocked(fsp.rename).mock.calls).toEqual([[written[0], file]]);
     expect(await readResultFile(file)).toEqual(resultFile({ a: entry() }));
-    expect(await readdir(dir)).toEqual(['skillbe.result.json']);
+    expect(await readdir(dir)).toEqual(['skill-be.result.json']);
   });
 
   it('leaves the old result file whole when the write is cut short', async () => {
-    const file = path.join(dir, 'skillbe.result.json');
+    const file = path.join(dir, 'skill-be.result.json');
     await writeFile(file, 'the old result\n');
     const actual = await vi.importActual<typeof fsp>('node:fs/promises');
     vi.mocked(fsp.writeFile).mockImplementationOnce(async (target, data) => {
@@ -229,7 +229,7 @@ describe('writeResultFile', () => {
     await expect(writeResultFile(file, resultFile({ a: entry() }))).rejects.toThrow(/ENOSPC/);
 
     expect(await readFile(file, 'utf8')).toBe('the old result\n');
-    expect(await readdir(dir)).toEqual(['skillbe.result.json']);
+    expect(await readdir(dir)).toEqual(['skill-be.result.json']);
   });
 
   it('creates the directory of the file and replaces an existing file', async () => {
@@ -242,7 +242,7 @@ describe('writeResultFile', () => {
   });
 
   it('does not write line endings other than LF', async () => {
-    const file = path.join(dir, 'skillbe.result.json');
+    const file = path.join(dir, 'skill-be.result.json');
 
     await writeResultFile(file, resultFile({ a: entry({ reasons: ['line one\nline two'] }) }));
 
@@ -287,7 +287,7 @@ describe('mergeResults', () => {
       resultFile({ b: entry() }, '1.1.0'),
     );
 
-    expect(merged.skillbeVersion).toBe('1.1.0');
+    expect(merged.skillBeVersion).toBe('1.1.0');
   });
 
   it('changes neither argument', () => {
@@ -333,12 +333,14 @@ describe('verifyResults', () => {
 
   /** A project with the skills `a` and `b` (both with evals) and `c` (without an eval file). */
   async function load(): Promise<void> {
-    config = await loadConfig(path.join(dir, 'skillbe.yaml'), { typescriptInstalled: () => false });
+    config = await loadConfig(path.join(dir, 'skill-be.yaml'), {
+      typescriptInstalled: () => false,
+    });
     suites = (await loadSuites(config)).suites;
   }
 
   beforeEach(async () => {
-    await put('skillbe.yaml', CONFIG_YAML);
+    await put('skill-be.yaml', CONFIG_YAML);
     for (const name of ['a', 'b', 'c']) await put(`skills/${name}/SKILL.md`, `# Skill ${name}\n`);
     for (const name of ['a', 'b']) await put(`evals/${name}.json`, EVAL_JSON);
     await load();
@@ -379,7 +381,7 @@ describe('verifyResults', () => {
   it('reports a missing result file as a single problem', async () => {
     expect(await verifyResults(config, suites, null)).toEqual({
       ok: false,
-      problems: ['no result file: run "skillbe run" first'],
+      problems: ['no result file: run "skill-be run" first'],
     });
   });
 
@@ -392,7 +394,7 @@ describe('verifyResults', () => {
     expect(verdict.problems).toHaveLength(1);
     expect(verdict.problems[0]).toContain('"b"');
     expect(verdict.problems[0]).toMatch(/no entry/);
-    expect(verdict.problems[0]).toContain('skillbe run b');
+    expect(verdict.problems[0]).toContain('skill-be run b');
   });
 
   it('reports one problem for a skill whose fingerprint is stale', async () => {
@@ -405,7 +407,7 @@ describe('verifyResults', () => {
     expect(verdict.problems).toHaveLength(1);
     expect(verdict.problems[0]).toContain('"b"');
     expect(verdict.problems[0]).toMatch(/changed/);
-    expect(verdict.problems[0]).toContain('skillbe run b');
+    expect(verdict.problems[0]).toContain('skill-be run b');
   });
 
   it('reports a stale fingerprint when only the eval file changed', async () => {
@@ -420,7 +422,7 @@ describe('verifyResults', () => {
 
   it('reports a stale fingerprint for every skill when the config changed', async () => {
     const file = resultFile({ a: await current('a'), b: await current('b') });
-    await put('skillbe.yaml', CONFIG_YAML + 'reps: 5\n');
+    await put('skill-be.yaml', CONFIG_YAML + 'reps: 5\n');
 
     const verdict = await verifyResults(config, suites, file);
 
@@ -467,7 +469,7 @@ describe('verifyResults', () => {
     expect(verdict.problems[1]).toContain('"b"');
   });
 
-  it('does not match the skillBe version', async () => {
+  it('does not match the skill-be version', async () => {
     const file = resultFile({ a: await current('a'), b: await current('b') }, '0.0.1-old');
 
     expect((await verifyResults(config, suites, file)).ok).toBe(true);
@@ -476,7 +478,7 @@ describe('verifyResults', () => {
   it('is not fooled by CRLF line endings on a checkout of the same files', async () => {
     const file = resultFile({ a: await current('a'), b: await current('b') });
     await put('skills/a/SKILL.md', '# Skill a\r\n');
-    await put('skillbe.yaml', CONFIG_YAML.replace(/\n/g, '\r\n'));
+    await put('skill-be.yaml', CONFIG_YAML.replace(/\n/g, '\r\n'));
     await put('evals/b.json', EVAL_JSON.replace(/\n/g, '\r\n'));
 
     const verdict = await verifyResults(config, suites, file);

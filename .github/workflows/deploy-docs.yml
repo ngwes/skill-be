@@ -1,0 +1,51 @@
+name: Deploy docs to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    # The site is built from the README and ./site
+    paths:
+      - README.md
+      - site/**
+      - .github/workflows/deploy-docs.yml
+  # Pull requests only build the site (and check its links); the deploy job below is skipped
+  pull_request:
+    branches: [main]
+    paths:
+      - README.md
+      - site/**
+      - .github/workflows/deploy-docs.yml
+  # Allows running the workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository using git
+        uses: actions/checkout@v7
+      - name: Install, build, and upload your site
+        uses: withastro/action@v6
+        with:
+          path: ./site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

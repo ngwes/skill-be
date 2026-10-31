@@ -28,7 +28,7 @@ export type TypescriptDeps = {
 
 /**
  * The file `typescript` resolves to for a project: from the project `root` first, else from
- * skillBe's own install (with npx, a global install or pnpm, the two differ). `undefined` when
+ * skill-be's own install (with npx, a global install or pnpm, the two differ). `undefined` when
  * neither has it. The default typecheck is turned on, and the presets load the compiler, by
  * this one lookup, so they always agree.
  */
@@ -67,7 +67,7 @@ export async function loadTypescript(
 async function importTypescript(root: string): Promise<TypeScript> {
   const file = resolveTypescript(root);
   if (file === undefined) {
-    throw new Error(`"typescript" resolves neither from ${root} nor from skillBe's own install`);
+    throw new Error(`"typescript" resolves neither from ${root} nor from skill-be's own install`);
   }
   // The package is CommonJS: its exports are the default export of the ES module.
   return ((await import(pathToFileURL(file).href)) as { default: TypeScript }).default;

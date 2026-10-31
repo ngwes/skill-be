@@ -1,58 +1,64 @@
-# skillBe
+# skill-be
 
-skillBe tests Agent Skills (`SKILL.md` files) and gives a pass/fail release gate for them.
+skill-be tests Agent Skills (`SKILL.md` files) and gives a pass/fail release gate for them.
 
-A skill is documentation written for a model: it teaches the model how to use your library, follow your conventions or do a task your way. Whether it works is hard to see by reading it. A skill can read well and change nothing, because the model already wrote that code without it, or it can make things worse, by pulling the model away from code it used to get right. Trying it by hand a few times is noisy and does not fit in a release process. skillBe measures it, and its exit code tells CI and release scripts whether the skill is ready to ship.
+<!-- docs-site:skip-start -->
+**Documentation:** <https://ngwes.github.io/skill-be/>
+<!-- docs-site:skip-end -->
+
+A skill is documentation written for a model: it teaches the model how to use your library, follow your conventions or do a task your way. Whether it works is hard to see by reading it. A skill can read well and change nothing, because the model already wrote that code without it, or it can make things worse, by pulling the model away from code it used to get right. Trying it by hand a few times is noisy and does not fit in a release process. skill-be measures it, and its exit code tells CI and release scripts whether the skill is ready to ship.
 
 ## How it works
 
-For each skill, skillBe answers one question: does giving this skill to the model make it write the code the skill teaches, without making anything worse?
+For each skill, skill-be answers one question: does giving this skill to the model make it write the code the skill teaches, without making anything worse?
 
-1. **Two arms.** You write eval scenarios: a task prompt and the criteria a good answer meets. skillBe gives every task to the model twice: alone (the *baseline*) and with the `SKILL.md` text put in front of it (*with skill*). Each arm is repeated `reps` times.
+1. **Two arms.** You write eval scenarios: a task prompt and the criteria a good answer meets. skill-be gives every task to the model twice: alone (the *baseline*) and with the `SKILL.md` text put in front of it (*with skill*). Each arm is repeated `reps` times.
 2. **Grading.** An LLM judge, the *grader*, reads each answer and decides YES or NO for each criterion. A criterion's score in an arm is the share of reps graded YES.
 3. **The gate.** Rules turn the scores into READY or NOT READY. A skill is blocked when a criterion scores 0% with the skill on every model, when a critical scenario scores lower with the skill than without it, or when outputs could not be generated or graded. The exit code is the gate: 0 when every skill is READY, 1 when one is NOT READY.
 4. **Checks, without a model.** The TypeScript examples in each `SKILL.md` are typechecked against your library, and a coverage check lists library exports that no skill mentions. A failing blocking check also makes the exit code 1.
 
 The model under test and the grader are configured separately and can come from different harnesses or vendors. Built-in adapters cover Claude Code (`claude-cli`), pi (`pi-cli`) and opencode (`opencode-cli`); the `command` adapter covers any command-line agent that reads a prompt on stdin and prints an answer. Each CLI adapter uses the login its CLI already has, or an API key (see [Credentials](#credentials)).
 
-skillBe tests the skill's content: the `SKILL.md` text goes into the prompt. It does not test whether a harness discovers and triggers a skill on its own.
+skill-be tests the skill's content: the `SKILL.md` text goes into the prompt. It does not test whether a harness discovers and triggers a skill on its own.
 
 The usual workflow:
 
-1. Write the skill and its evals, and run `skillbe check` until the examples compile.
-2. Run `skillbe run` on your machine, with your own CLI logins. Read the reports; `skillbe triage` explains failing criteria.
-3. Commit `skillbe.result.json`, the record of the last run, with the skill.
-4. Run `skillbe verify` in CI. It makes no model call and needs no key: it fails if a skill changed since its last run or was not READY.
+1. Write the skill and its evals, and run `skill-be check` until the examples compile.
+2. Run `skill-be run` on your machine, with your own CLI logins. Read the reports; `skill-be triage` explains failing criteria.
+3. Commit `skill-be.result.json`, the record of the last run, with the skill.
+4. Run `skill-be verify` in CI. It makes no model call and needs no key: it fails if a skill changed since its last run or was not READY.
 
+<!-- docs-site:skip-start -->
 Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals)
+<!-- docs-site:skip-end -->
 
 ## Install
 
 Requires Node 20 or newer.
 
 ```sh
-npm install --save-dev @ngwes/skillbe
-npx skillbe --help
+npm install --save-dev @ngwes/skill-be
+npx skill-be --help
 ```
 
 <!-- BEGIN not-on-npm note: delete at publish -->
-> **Note:** skillBe is not on npm yet. Until it is, clone https://github.com/ngwes/skillBe, run `npm ci && npm run build && npm link`, then `npm link @ngwes/skillbe` in your project.
+> **Note:** skill-be is not on npm yet. Until it is, clone https://github.com/ngwes/skill-be, run `npm ci && npm run build && npm link`, then `npm link @ngwes/skill-be` in your project.
 <!-- END not-on-npm note -->
 
-`typescript` (5 or 6) is an optional peer dependency. Install it (`npm install --save-dev typescript`) to use the TypeScript typecheck and coverage presets. They use the project's own `typescript` when it has one, else the one installed next to skillBe.
+`typescript` (5 or 6) is an optional peer dependency. Install it (`npm install --save-dev typescript`) to use the TypeScript typecheck and coverage presets. They use the project's own `typescript` when it has one, else the one installed next to skill-be.
 
-`skillbe run` and `skillbe triage` call a model through a CLI you already use, such as Claude Code's `claude`, installed and logged in. `skillbe check` and `skillbe verify` call no model.
+`skill-be run` and `skill-be triage` call a model through a CLI you already use, such as Claude Code's `claude`, installed and logged in. `skill-be check` and `skill-be verify` call no model.
 
 ## Example: test a skill end to end
 
-This example builds a complete project from scratch: `tiny-money`, a small TypeScript library for amounts of money; `money`, a skill that teaches a model to use it; and the evals that test the skill. Every file is shown in full, so you can recreate the project by copy and paste. The same files are in skillBe's own tests (`test/fixtures/demo`), which check that they match this section and pass `skillbe check`.
+This example builds a complete project from scratch: `tiny-money`, a small TypeScript library for amounts of money; `money`, a skill that teaches a model to use it; and the evals that test the skill. Every file is shown in full, so you can recreate the project by copy and paste. The same files are in skill-be's own tests (`test/fixtures/demo`), which check that they match this section and pass `skill-be check`.
 
 The folder layout:
 
 ```
 tiny-money/
   package.json
-  skillbe.yaml
+  skill-be.yaml
   lib/
     index.ts
   skills/
@@ -152,7 +158,7 @@ export function sum(amounts: readonly Money[], currency: Currency): Money {
 
 ### The skill
 
-A skill is a folder with a `SKILL.md`. The front matter (`name`, `description`) is what a harness uses to pick the skill; skillBe gives the model the whole file. The `ts` blocks are typechecked against the library, so an example that calls an API wrongly fails `skillbe check`.
+A skill is a folder with a `SKILL.md`. The front matter (`name`, `description`) is what a harness uses to pick the skill; skill-be gives the model the whole file. The `ts` blocks are typechecked against the library, so an example that calls an API wrongly fails `skill-be check`.
 
 #### `skills/money/SKILL.md`
 
@@ -278,15 +284,15 @@ The eval file of a skill is `<evals dir>/<skill>.json`. Each scenario is a task,
 
 ### The config
 
-`skillbe.yaml` is the only config file. Paths in it are relative to it.
+`skill-be.yaml` is the only config file. Paths in it are relative to it.
 
-#### `skillbe.yaml`
+#### `skill-be.yaml`
 
 ```yaml
 skills: ./skills
 evals: ./evals
 
-# The model under test and the judge. For apiKeyEnv, see "Credentials" in skillBe's README.
+# The model under test and the judge. For apiKeyEnv, see "Credentials" in skill-be's README.
 model:
   adapter: claude-cli
   id: claude-sonnet-5-5
@@ -325,25 +331,25 @@ checks:
 
 ### Set it up
 
-Install skillBe and TypeScript, and keep the results directory out of git:
+Install skill-be and TypeScript, and keep the results directory out of git:
 
 ```sh
-npm install --save-dev @ngwes/skillbe typescript
-echo ".skillbe/" >> .gitignore
+npm install --save-dev @ngwes/skill-be typescript
+echo ".skill-be/" >> .gitignore
 ```
 
-In PowerShell, the second line is `Add-Content .gitignore ".skillbe/"`.
+In PowerShell, the second line is `Add-Content .gitignore ".skill-be/"`.
 
 <!-- BEGIN not-on-npm note: delete at publish -->
-> **Note:** until skillBe is on npm, install only `typescript` here, then link skillBe as the [Install](#install) note says. Link last: a later `npm install` removes the link.
+> **Note:** until skill-be is on npm, install only `typescript` here, then link skill-be as the [Install](#install) note says. Link last: a later `npm install` removes the link.
 <!-- END not-on-npm note -->
 
 ### Check the examples
 
-`skillbe check` typechecks the examples and checks coverage. It calls no model, so it is the quick loop while you write the skill.
+`skill-be check` typechecks the examples and checks coverage. It calls no model, so it is the quick loop while you write the skill.
 
 ```sh
-npx skillbe check
+npx skill-be check
 ```
 
 ```
@@ -366,7 +372,7 @@ Result: blocked by the typecheck
 `run` calls `claude`, so it must be installed (`npm install --global @anthropic-ai/claude-code`) and logged in (run `claude` once and follow the login prompt). `claude -p "say hi"` should print an answer before you go on.
 
 ```sh
-npx skillbe run
+npx skill-be run
 ```
 
 This makes 12 generations (3 scenarios, 2 reps, 2 arms) and 12 gradings, a few at a time. Progress goes to stderr:
@@ -440,37 +446,37 @@ Skills:
 typecheck: passed (1 skill(s))
 coverage: every API name is mentioned
 Written:
-  .skillbe/results/2026-10-31T16-20-05-112Z/money.md
-  .skillbe/results/2026-10-31T16-20-05-112Z/summary.json
-  skillbe.result.json
+  .skill-be/results/2026-10-31T16-20-05-112Z/money.md
+  .skill-be/results/2026-10-31T16-20-05-112Z/summary.json
+  skill-be.result.json
 Result: pass
 ```
 
-The skill is READY: no criterion is at 0% with the skill, and no critical scenario got worse. The outputs and the grader's answers are under `.skillbe/results/<run>/money/`, one file each, if you want to see what the model wrote.
+The skill is READY: no criterion is at 0% with the skill, and no critical scenario got worse. The outputs and the grader's answers are under `.skill-be/results/<run>/money/`, one file each, if you want to see what the model wrote.
 
 ### Look at weak criteria
 
-Formatting with `format` passed only half the time. `skillbe triage` takes the criteria that blocked the latest run and, with `--below`, also those that scored under a threshold with the skill, generates fresh with-skill samples, and asks a model why they fail:
+Formatting with `format` passed only half the time. `skill-be triage` takes the criteria that blocked the latest run and, with `--below`, also those that scored under a threshold with the skill, generates fresh with-skill samples, and asks a model why they fail:
 
 ```sh
-npx skillbe triage --below 80
+npx skill-be triage --below 80
 ```
 
 ```
 Triage: 1 failure(s)
   money [order-total-with-vat] claude-sonnet-5-5 "Produces the display string with format, not with toFixed or string concatenation": skill gap — the samples format cents / 100 with Intl.NumberFormat; the skill's table lists format but never says not to format by hand
-Report: .skillbe/results/2026-10-31T16-20-05-112Z/triage-2026-10-31T16-23-40-518Z.md
+Report: .skill-be/results/2026-10-31T16-20-05-112Z/triage-2026-10-31T16-23-40-518Z.md
 ```
 
 The proposal is for you to confirm. Here it is right: say plainly in `SKILL.md` that amounts are displayed only with `format`, never with `toFixed` or `Intl.NumberFormat`, then run again. Triage never blocks.
 
 ### Commit the result
 
-`run` wrote `skillbe.result.json`: per skill, the verdict and a fingerprint of its `SKILL.md`, its eval file and `skillbe.yaml`.
+`run` wrote `skill-be.result.json`: per skill, the verdict and a fingerprint of its `SKILL.md`, its eval file and `skill-be.yaml`.
 
 ```json
 {
-  "skillbeVersion": "1.0.0",
+  "skillBeVersion": "1.0.0",
   "skills": {
     "money": {
       "date": "2026-10-31",
@@ -484,31 +490,31 @@ The proposal is for you to confirm. Here it is right: say plainly in `SKILL.md` 
 }
 ```
 
-Commit it with the skill, the evals and the config it covers; `.skillbe/` stays out of git. In a git repository (`git init` if needed):
+Commit it with the skill, the evals and the config it covers; `.skill-be/` stays out of git. In a git repository (`git init` if needed):
 
 ```sh
-git add package.json package-lock.json .gitignore skillbe.yaml skillbe.result.json lib skills evals
+git add package.json package-lock.json .gitignore skill-be.yaml skill-be.result.json lib skills evals
 git commit -m "feat: add the money skill"
 ```
 
-`skillbe verify` checks that commit without calling a model:
+`skill-be verify` checks that commit without calling a model:
 
 ```sh
-npx skillbe verify
+npx skill-be verify
 ```
 
 ```
-result file skillbe.result.json: 1 skill(s) match their last run, every one READY
+result file skill-be.result.json: 1 skill(s) match their last run, every one READY
 typecheck: passed (1 skill(s))
 coverage: every API name is mentioned
 Result: pass
 ```
 
-Edit `SKILL.md`, the eval file or `skillbe.yaml` without running again, and `verify` fails with exit code 1:
+Edit `SKILL.md`, the eval file or `skill-be.yaml` without running again, and `verify` fails with exit code 1:
 
 ```
-result file skillbe.result.json: 1 problem(s)
-  - skill "money": changed since its last run (its SKILL.md, its eval file or the config); run "skillbe run money"
+result file skill-be.result.json: 1 problem(s)
+  - skill "money": changed since its last run (its SKILL.md, its eval file or the config); run "skill-be run money"
 typecheck: passed (1 skill(s))
 coverage: every API name is mentioned
 Result: blocked by the result file
@@ -516,7 +522,7 @@ Result: blocked by the result file
 
 ### Verify in CI
 
-`verify` needs no API key, so it can run on every pull request. To let CI run the benchmark itself as well, store an Anthropic API key as the repository secret `ANTHROPIC_API_KEY`. The config does not change: `apiKeyEnv: ANTHROPIC_API_KEY` makes claude use your login on your machine (when `ANTHROPIC_API_KEY` is not exported there) and the secret in CI, where a missing secret stops `skillbe run` with exit code 2 ([Credentials](#credentials)).
+`verify` needs no API key, so it can run on every pull request. To let CI run the benchmark itself as well, store an Anthropic API key as the repository secret `ANTHROPIC_API_KEY`. The config does not change: `apiKeyEnv: ANTHROPIC_API_KEY` makes claude use your login on your machine (when `ANTHROPIC_API_KEY` is not exported there) and the secret in CI, where a missing secret stops `skill-be run` with exit code 2 ([Credentials](#credentials)).
 
 ```yaml
 # .github/workflows/skills.yml
@@ -538,7 +544,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npx skillbe verify
+      - run: npx skill-be verify
 
   benchmark:
     # Started by hand from the Actions tab; it calls the model and costs tokens.
@@ -551,12 +557,12 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm install --global @anthropic-ai/claude-code
-      - run: npx skillbe run
+      - run: npx skill-be run
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-The benchmark job's exit code is the gate for that run. Its `skillbe.result.json` stays on the runner; to commit results, run the benchmark on your machine.
+The benchmark job's exit code is the gate for that run. Its `skill-be.result.json` stays on the runner; to commit results, run the benchmark on your machine.
 
 ### Use another model
 
@@ -580,11 +586,11 @@ model:
   apiKeyEnv: GEMINI_API_KEY
 ```
 
-`model` also takes a list, to test several models in one run. The fingerprint covers `skillbe.yaml`, so after changing it, run the benchmark again before `verify`. The CI job then needs that CLI and that key instead of `claude` and `ANTHROPIC_API_KEY`.
+`model` also takes a list, to test several models in one run. The fingerprint covers `skill-be.yaml`, so after changing it, run the benchmark again before `verify`. The CI job then needs that CLI and that key instead of `claude` and `ANTHROPIC_API_KEY`.
 
 ## Configuration
 
-`skillbe.yaml` at the project root; use `--config <path>` for another file. Relative paths inside it resolve against the config file's directory. An unknown key is an error (exit code 2), at the top level and inside `gate`, `checks`, `checks.typecheck`, `checks.coverage` and `triage`, so a typo such as `bloking: true` cannot pass unnoticed. The adapter entries (`model`, `grader`, `triage.model`) are the exception: they accept any key, since their settings belong to the adapter.
+`skill-be.yaml` at the project root; use `--config <path>` for another file. Relative paths inside it resolve against the config file's directory. An unknown key is an error (exit code 2), at the top level and inside `gate`, `checks`, `checks.typecheck`, `checks.coverage` and `triage`, so a typo such as `bloking: true` cannot pass unnoticed. The adapter entries (`model`, `grader`, `triage.model`) are the exception: they accept any key, since their settings belong to the adapter.
 
 This is the minimum. A skill is a folder under `skills` with a `SKILL.md`; its eval file is `<evals>/<skill>.json`.
 
@@ -609,8 +615,8 @@ grader:
 | `gradings` | `3` | Grader calls per output; the majority wins (a positive integer) |
 | `concurrency` | `4` | Model calls in flight at once, across generation and grading |
 | `timeoutSeconds` | `120` | Per call; the child process (and what it started) is killed on timeout. At most `2147483` (about 24.8 days), the longest a Node timer holds |
-| `results` | `./.skillbe/results` | Where outputs, grader answers and reports go |
-| `resultFile` | `./skillbe.result.json` | The committed result that `verify` reads |
+| `results` | `./.skill-be/results` | Where outputs, grader answers and reports go |
+| `resultFile` | `./skill-be.result.json` | The committed result that `verify` reads |
 | `withSkillTemplate` | see below | How the skill text and the task are put together; must contain `{{skill}}` and `{{task}}` |
 | `graderPrompt` | built in | Replaces the grader's role sentence and rules (see [Grading](#grading)) |
 | `gate.regressionOnCritical` | `true` | Block when a critical scenario's criterion scores lower with the skill than without |
@@ -665,7 +671,7 @@ In the tables of a report and in the result file a model is labeled by its `id`,
 
 ### Credentials
 
-Credentials never go in the YAML. An adapter setting such as `apiKeyEnv: ANTHROPIC_API_KEY` names the environment variable skillBe reads an API key from. Keys are replaced by `***` in error messages. Which credential a CLI adapter uses:
+Credentials never go in the YAML. An adapter setting such as `apiKeyEnv: ANTHROPIC_API_KEY` names the environment variable skill-be reads an API key from. Keys are replaced by `***` in error messages. Which credential a CLI adapter uses:
 
 | `apiKeyEnv` | Its variable | `CI` | Credential |
 |---|---|---|---|
@@ -690,7 +696,7 @@ grader:
   apiKeyEnv: ANTHROPIC_API_KEY
 ```
 
-A key exported in your shell is used on your machine too. To use the stored login instead, unset the variable for the run: `env -u ANTHROPIC_API_KEY npx skillbe run`, or in PowerShell `Remove-Item Env:ANTHROPIC_API_KEY; npx skillbe run` (which unsets it for the rest of that session).
+A key exported in your shell is used on your machine too. To use the stored login instead, unset the variable for the run: `env -u ANTHROPIC_API_KEY npx skill-be run`, or in PowerShell `Remove-Item Env:ANTHROPIC_API_KEY; npx skill-be run` (which unsets it for the rest of that session).
 
 How the key reaches each CLI differs:
 
@@ -728,7 +734,7 @@ Isolation flags:
 | `--append-system-prompt "No tools are available in this session. Answer directly in your reply; do not try to call tools, read files or explore a codebase."` | Says so; without it the model writes fake tool calls as text |
 | `--no-session-persistence` | No session transcript per call |
 
-Auto memory (`~/.claude/projects/<project>/memory/`) loads whatever the setting sources say, so skillBe also sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in claude's environment, as Claude Code's docs advise for isolated runs.
+Auto memory (`~/.claude/projects/<project>/memory/`) loads whatever the setting sources say, so skill-be also sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in claude's environment, as Claude Code's docs advise for isolated runs.
 
 Other environment variables are inherited as they are. Provider variables set in your shell, such as `ANTHROPIC_API_KEY` or `ANTHROPIC_BASE_URL`, are not scrubbed: they reach claude and apply to the run.
 
@@ -763,7 +769,7 @@ model:
 
 ### opencode-cli
 
-Runs `opencode run -m <provider>/<id> --agent skillbe --title skillbe --pure --format json --dir <temp dir>` with the prompt on stdin (opencode appends piped stdin to the message). The answer is read from the `--format json` events.
+Runs `opencode run -m <provider>/<id> --agent skill-be --title skill-be --pure --format json --dir <temp dir>` with the prompt on stdin (opencode appends piped stdin to the message). The answer is read from the `--format json` events.
 
 | Setting | |
 |---|---|
@@ -782,14 +788,14 @@ model:
   apiKeyEnv: GEMINI_API_KEY
 ```
 
-`opencode run` has no flags that turn off tools, settings or context files, so skillBe isolates each call through the environment instead. This was checked against opencode 1.19.5. Each call gets:
+`opencode run` has no flags that turn off tools, settings or context files, so skill-be isolates each call through the environment instead. This was checked against opencode 1.19.5. Each call gets:
 
 - A fresh, empty temp directory as the working directory and as `--dir`, with `OPENCODE_DISABLE_PROJECT_CONFIG=1`: no project `opencode.json`, `.opencode/` or `AGENTS.md`.
 - `XDG_CONFIG_HOME` pointing at a second empty temp directory: your global config (`~/.config/opencode`, with its MCP servers, plugins, agents and `AGENTS.md`) is not loaded.
 - `OPENCODE_TEST_HOME` pointing at the temp base, which has no `.opencode`: opencode always reads `<home>/.opencode` (its `opencode.json`, agents, commands and plugins), and takes `<home>` from this variable before the real home directory.
-- A generated config in `OPENCODE_CONFIG_CONTENT` whose `skillbe` agent has every tool off and every permission denied, with the no-tools note as its whole system prompt in place of opencode's coding prompt. No tool definitions reach the model. Inherited `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR` and `OPENCODE_PERMISSION` are removed so they cannot merge back in.
+- A generated config in `OPENCODE_CONFIG_CONTENT` whose `skill-be` agent has every tool off and every permission denied, with the no-tools note as its whole system prompt in place of opencode's coding prompt. No tool definitions reach the model. Inherited `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR` and `OPENCODE_PERMISSION` are removed so they cannot merge back in.
 - `--pure` and `OPENCODE_PURE=1` (no external plugins), `OPENCODE_DISABLE_CLAUDE_CODE=1` (no `~/.claude/CLAUDE.md` or `~/.claude/skills`), `OPENCODE_DISABLE_EXTERNAL_SKILLS=1` (no other skill folders) and `OPENCODE_DISABLE_AUTOUPDATE=1`.
-- `OPENCODE_DB=:memory:`, so no transcript is written to your `opencode.db`, and `--title skillbe`, which skips the extra model call that names a session.
+- `OPENCODE_DB=:memory:`, so no transcript is written to your `opencode.db`, and `--title skill-be`, which skips the extra model call that names a session.
 
 What this isolation cannot do:
 
@@ -839,7 +845,7 @@ An error thrown by the function counts as a failed output.
 ## Commands
 
 ```
-Usage: skillbe <command> [options]
+Usage: skill-be <command> [options]
 
 Benchmarks Agent Skills: baseline versus with-skill, LLM-graded and gated.
 
@@ -854,7 +860,7 @@ Commands:
                      Never blocks.
 
 Options:
-  --config <path>    The config file (default: ./skillbe.yaml)
+  --config <path>    The config file (default: ./skill-be.yaml)
   --reps <n>         run: generations per arm per scenario, instead of the config's
   --concurrency <n>  run: model calls in flight at once, instead of the config's
   --below <pct>      triage: also triage criteria that scored under pct% with the skill
@@ -881,14 +887,14 @@ A run makes, per skill, `scenarios x models x reps x 2` generations (two arms), 
 | `130` | Interrupted by SIGINT (Ctrl+C) |
 | `143` | Terminated by SIGTERM |
 
-On SIGINT or SIGTERM the model calls in flight are killed before skillBe exits. `run` writes the summary and the result file after every skill, so an interrupted run keeps the skills it finished.
+On SIGINT or SIGTERM the model calls in flight are killed before skill-be exits. `run` writes the summary and the result file after every skill, so an interrupted run keeps the skills it finished.
 
 ### What `run` writes
 
 Everything lands under `results`, in a directory named for the start time of the run:
 
 ```
-.skillbe/results/2026-10-31T16-20-05-112Z/
+.skill-be/results/2026-10-31T16-20-05-112Z/
   summary.json                          the JSON summary of the run
   money.md                              the markdown report of a skill
   money/<scenario>/<model>/
@@ -898,7 +904,7 @@ Everything lands under `results`, in a directory named for the start time of the
     rep-1-with-skill.grading-1.md
 ```
 
-Add `.skillbe/` to your `.gitignore`: the results directory is for inspection, and only `skillbe.result.json` is committed.
+Add `.skill-be/` to your `.gitignore`: the results directory is for inspection, and only `skill-be.result.json` is committed.
 
 `run` ends with a summary of the verdicts, the checks and the files it wrote ([sample](#run-the-benchmark)). The checks run after the benchmark, over every skill that has an eval file. A bad check setting (for example a `library` that does not exist) stops `run` with exit code 2 before the first model call.
 
@@ -965,18 +971,18 @@ graderPrompt: |
 
 ## Workflows
 
-There are two ways to gate a release on skillBe:
+There are two ways to gate a release on skill-be:
 
-- **Run locally, commit, verify in CI.** You run `skillbe run` on your machine with your own logins and commit `skillbe.result.json`; CI runs `skillbe verify`, which calls no model and needs no key, so it is fast and free. The trade-off: CI trusts the committed result. It proves the skill was READY when someone last ran it with this exact `SKILL.md`, eval file and config, not that it still is with today's model.
-- **CI runs everything.** CI runs `skillbe run` with an API key ([Credentials](#credentials)); its exit code is the gate and nothing needs committing. CI is the authority, but every run costs tokens and minutes, so it suits a manual or scheduled job better than every push.
+- **Run locally, commit, verify in CI.** You run `skill-be run` on your machine with your own logins and commit `skill-be.result.json`; CI runs `skill-be verify`, which calls no model and needs no key, so it is fast and free. The trade-off: CI trusts the committed result. It proves the skill was READY when someone last ran it with this exact `SKILL.md`, eval file and config, not that it still is with today's model.
+- **CI runs everything.** CI runs `skill-be run` with an API key ([Credentials](#credentials)); its exit code is the gate and nothing needs committing. CI is the authority, but every run costs tokens and minutes, so it suits a manual or scheduled job better than every push.
 
 The example shows the steps: [Commit the result](#commit-the-result), then [Verify in CI](#verify-in-ci), whose workflow runs `verify` on every pull request and the benchmark on demand.
 
 ## Result file
 
-`skillbe.result.json` is meant to be committed. It records the skillBe version and, per skill, the date of its last run, its verdict, the blocking reasons, the models and the grader, and a fingerprint ([sample](#commit-the-result)).
+`skill-be.result.json` is meant to be committed. It records the skill-be version and, per skill, the date of its last run, its verdict, the blocking reasons, the models and the grader, and a fingerprint ([sample](#commit-the-result)).
 
-The fingerprint is a SHA-256 over the skill's `SKILL.md`, its eval file and the config file. Line endings are normalized to LF first, so a Windows run matches a Linux `verify`. The skillBe version is recorded but is not part of the match. Neither the library nor the prelude files are part of it; `verify` re-runs the typecheck itself. Since it covers the config file, any edit to `skillbe.yaml` (a comment included) makes every skill stale. `skillbe run <skill>` re-runs one skill and replaces only its entry.
+The fingerprint is a SHA-256 over the skill's `SKILL.md`, its eval file and the config file. Line endings are normalized to LF first, so a Windows run matches a Linux `verify`. The skill-be version is recorded but is not part of the match. Neither the library nor the prelude files are part of it; `verify` re-runs the typecheck itself. Since it covers the config file, any edit to `skill-be.yaml` (a comment included) makes every skill stale. `skill-be run <skill>` re-runs one skill and replaces only its entry.
 
 `verify` fails when:
 
@@ -988,7 +994,7 @@ The fingerprint is a SHA-256 over the skill's `SKILL.md`, its eval file and the 
 
 ## Checks
 
-Checks run after `run`, in `verify`, and alone with `skillbe check`, over every skill that has an eval file.
+Checks run after `run`, in `verify`, and alone with `skill-be check`, over every skill that has an eval file.
 
 ### Typecheck
 
@@ -1019,7 +1025,7 @@ checks:
 | `library` | A package name resolved from the project's `node_modules`, or a path to the library's source entry. Without it no exports are in scope, and an `import` of the library must resolve from `node_modules` |
 | `preludes` | A map from skill name to a TypeScript file, compiled with that skill's blocks. A file without imports declares global names, for example `declare const db: Db;`, so more of an example is checked |
 | `blocking` | Default `true` |
-| `command` | Another language: runs this command line (same rules as the `command` adapter) once per fenced block that has a language tag and is not marked `skip`, with the code on stdin and the environment variables `SKILLBE_LANG` and `SKILLBE_SKILL`. A non-zero exit is a problem. Each block may take 60 seconds |
+| `command` | Another language: runs this command line (same rules as the `command` adapter) once per fenced block that has a language tag and is not marked `skip`, with the code on stdin and the environment variables `SKILL_BE_LANG` and `SKILL_BE_SKILL`. A non-zero exit is a problem. Each block may take 60 seconds |
 | `preset` | Only `typescript`; it is implied when `command` is not set |
 
 When `command` is set it takes the place of the preset. `checks.typecheck: false` turns the check off. A problem is reported with its `SKILL.md` line:
@@ -1054,7 +1060,7 @@ coverage: 1 API name(s) not mentioned in any SKILL.md or eval file, not blocking
 
 ## Triage
 
-`skillbe triage [skill...]` looks closer at the failures of the latest run: the newest directory under `results` with a `summary.json`. It never blocks (exit code 0), but it needs a run to read, so run the benchmark first.
+`skill-be triage [skill...]` looks closer at the failures of the latest run: the newest directory under `results` with a `summary.json`. It never blocks (exit code 0), but it needs a run to read, so run the benchmark first.
 
 A failing criterion is one that caused a block in that run: a zero block (triaged on every model under test) or a regression block (on its model). With `--below <pct>` it also takes criteria that scored under that percentage with the skill. The `[ERROR]` block names no criterion and is listed as not triaged.
 
@@ -1081,7 +1087,7 @@ A failure whose samples could not be generated, or whose classification could no
 ```
 Triage: 1 failure(s)
   money [split-the-bill] claude-sonnet-5-5 "The shares it returns always add up exactly to the total": grader error — the samples split with allocate, whose shares always add up to the total
-Report: .skillbe/results/2026-10-31T16-20-05-112Z/triage-2026-10-31T16-23-40-518Z.md
+Report: .skill-be/results/2026-10-31T16-20-05-112Z/triage-2026-10-31T16-23-40-518Z.md
 ```
 
 ## Writing evals
@@ -1104,4 +1110,22 @@ Good scenarios and criteria are most of the value:
 - **Accept equivalent idiomatic forms.** If the skill allows two ways to do it, say so in the criterion: "Adds the lines with `add` or `sum`", not "Uses `sum`". A criterion that demands one form fails correct code, and the failure shows up as a skill gap that is really an eval problem.
 - **One check per criterion.** Each criterion is judged on its own, as if it were the only one. Split "uses A and B" into two.
 
-When a criterion fails with the skill, read the grader's answers (`*.grading-<n>.md` next to the output) before changing the skill, or run `skillbe triage`. One model with one rep is noise: keep several reps, and look at the delta between the arms, not only the score with the skill.
+When a criterion fails with the skill, read the grader's answers (`*.grading-<n>.md` next to the output) before changing the skill, or run `skill-be triage`. One model with one rep is noise: keep several reps, and look at the delta between the arms, not only the score with the skill.
+
+<!-- docs-site:skip-start -->
+## Releasing
+
+For maintainers. semantic-release runs on every push to `main`: it reads the conventional commits, sets the version in `package.json`, updates `CHANGELOG.md` and tags the release. It does not publish to npm.
+
+Publishing is the manual "Publish to npm" workflow (`.github/workflows/publish.yml`), run from `main` in the Actions tab. It uses npm trusted publishing (OIDC), so it needs no npm token.
+
+npm trusted publishing can only be configured for a package that already exists, so the very first version is published by hand, from `main` after semantic-release has set its version:
+
+```sh
+npm login
+npm run build
+npm publish --access public
+```
+
+Then, on npmjs.com, open the package settings and add a trusted publisher: GitHub Actions, repository `ngwes/skill-be`, workflow `publish.yml`. Every later version goes through the workflow.
+<!-- docs-site:skip-end -->

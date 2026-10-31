@@ -1,9 +1,9 @@
 /**
- * The committed result file, `skillbe.result.json`: one fingerprinted entry per skill.
+ * The committed result file, `skill-be.result.json`: one fingerprinted entry per skill.
  *
  * A run of some skills replaces only their entries, so one skill can be re-run on its own.
  * `verify` makes no model call: it recomputes each fingerprint and fails when a skill changed
- * since its entry was written, has no entry, or was blocked. The skillBe version is recorded but
+ * since its entry was written, has no entry, or was blocked. The skill-be version is recorded but
  * does not take part in the match.
  */
 
@@ -29,13 +29,13 @@ export type SkillEntry = {
 };
 
 export type ResultFile = {
-  skillbeVersion: string;
+  skillBeVersion: string;
   /** Keyed by skill name. */
   skills: Record<string, SkillEntry>;
 };
 
-/** The version in skillBe's own `package.json`. */
-export async function skillbeVersion(): Promise<string> {
+/** The version in skill-be's own `package.json`. */
+export async function skillBeVersion(): Promise<string> {
   const manifest = await readFile(new URL('../package.json', import.meta.url), 'utf8');
   return (JSON.parse(manifest) as { version: string }).version;
 }
@@ -75,7 +75,7 @@ export async function writeResultFile(file: string, result: ResultFile): Promise
     const { date, fingerprint, ready, reasons, models, grader } = result.skills[name] as SkillEntry;
     skills[name] = { date, fingerprint, ready, reasons, models, grader };
   }
-  const ordered: ResultFile = { skillbeVersion: result.skillbeVersion, skills };
+  const ordered: ResultFile = { skillBeVersion: result.skillBeVersion, skills };
 
   await mkdir(path.dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}-${randomBytes(4).toString('hex')}.tmp`;
@@ -94,7 +94,7 @@ export async function writeResultFile(file: string, result: ResultFile): Promise
  */
 export function mergeResults(existing: ResultFile | null, updates: ResultFile): ResultFile {
   return {
-    skillbeVersion: updates.skillbeVersion,
+    skillBeVersion: updates.skillBeVersion,
     skills: { ...existing?.skills, ...updates.skills },
   };
 }
@@ -110,7 +110,7 @@ export async function verifyResults(
   suites: SkillSuite[],
   file: ResultFile | null,
 ): Promise<{ ok: boolean; problems: string[] }> {
-  if (file === null) return { ok: false, problems: ['no result file: run "skillbe run" first'] };
+  if (file === null) return { ok: false, problems: ['no result file: run "skill-be run" first'] };
 
   const problems: string[] = [];
   for (const suite of suites) {
@@ -125,7 +125,7 @@ async function problemWith(
   suite: SkillSuite,
   entry: SkillEntry | undefined,
 ): Promise<string | undefined> {
-  const rerun = `run "skillbe run ${suite.name}"`;
+  const rerun = `run "skill-be run ${suite.name}"`;
   if (entry === undefined) {
     return `skill "${suite.name}": no entry in the result file; ${rerun}`;
   }
@@ -158,7 +158,7 @@ function parseResultFile(data: unknown): ResultFile {
   for (const [name, raw] of Object.entries(skills)) {
     entries[name] = parseEntry(raw, `skills.${name}`);
   }
-  return { skillbeVersion: string(root.skillbeVersion, '"skillbeVersion"'), skills: entries };
+  return { skillBeVersion: string(root.skillBeVersion, '"skillBeVersion"'), skills: entries };
 }
 
 function parseEntry(raw: unknown, where: string): SkillEntry {

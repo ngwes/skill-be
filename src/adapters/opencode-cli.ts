@@ -15,7 +15,7 @@
  *   `os.homedir()`. The stored login is unaffected: the data directory holding `auth.json` comes
  *   from `XDG_DATA_HOME` or `os.homedir()`, not from this variable. The variable is meant for
  *   opencode's own tests, so a later opencode may drop it.
- * - `OPENCODE_CONFIG_CONTENT` holds a generated config whose `skillbe` agent (`--agent skillbe`)
+ * - `OPENCODE_CONFIG_CONTENT` holds a generated config whose `skill-be` agent (`--agent skill-be`)
  *   has every tool off and every permission denied, and the no-tools note as its whole system
  *   prompt, in place of opencode's coding prompt. No tool definitions reach the model: the
  *   request for "Reply with exactly: ok" is about 200 input tokens. Inherited `OPENCODE_CONFIG`,
@@ -24,7 +24,7 @@
  *   `~/.claude/CLAUDE.md` or `~/.claude/skills`. `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`: no other
  *   skill folders. `OPENCODE_DISABLE_AUTOUPDATE=1`: no self-update.
  * - `OPENCODE_DB=:memory:`: the session lives in memory, so no transcript is written to the
- *   user's `opencode.db`. `--title skillbe` skips the extra model call that names the session.
+ *   user's `opencode.db`. `--title skill-be` skips the extra model call that names the session.
  *
  * What it could not get:
  * - opencode still writes its log (`~/.local/share/opencode/log/opencode.log`): run metadata
@@ -55,7 +55,7 @@ import {
   type Runner,
 } from './common.js';
 
-const AGENT = 'skillbe';
+const AGENT = 'skill-be';
 
 const CONFIG = {
   $schema: 'https://opencode.ai/config.json',
@@ -115,7 +115,7 @@ export function createOpencodeCli(run: Runner = runProcess): Adapter {
     const key = apiKeyFromEnv(settings);
     const label = `opencode-cli (${provider}/${settings.id})`;
 
-    const base = await mkdtemp(path.join(os.tmpdir(), 'skillbe-opencode-'));
+    const base = await mkdtemp(path.join(os.tmpdir(), 'skill-be-opencode-'));
     try {
       const work = path.join(base, 'work');
       const configHome = path.join(base, 'config');

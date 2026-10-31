@@ -6,14 +6,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadTypescript, resolveTypescript } from '../src/checks/typescript.js';
 import { typescriptInstalled } from '../src/config.js';
 
-/** The `typescript` skillBe itself is installed with. */
+/** The `typescript` skill-be itself is installed with. */
 const OWN = createRequire(import.meta.url).resolve('typescript');
 const ownVersion = (createRequire(import.meta.url)('typescript') as { version: string }).version;
 
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(os.tmpdir(), 'skillbe-typescript-'));
+  dir = await mkdtemp(path.join(os.tmpdir(), 'skill-be-typescript-'));
 });
 
 afterEach(async () => {
@@ -42,7 +42,7 @@ describe('resolveTypescript', () => {
     expect(resolveTypescript(dir)).toBe(file);
   });
 
-  it("falls back to skillBe's own typescript for a project without one", () => {
+  it("falls back to skill-be's own typescript for a project without one", () => {
     expect(resolveTypescript(dir)).toBe(OWN);
   });
 });
@@ -57,7 +57,7 @@ describe('loadTypescript', () => {
     expect(typescriptInstalled(dir)).toBe(true);
   });
 
-  it("loads skillBe's own typescript for a project without one", async () => {
+  it("loads skill-be's own typescript for a project without one", async () => {
     const ts = await loadTypescript('typecheck', dir, {});
 
     expect(ts.version).toBe(ownVersion);

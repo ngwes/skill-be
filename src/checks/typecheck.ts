@@ -94,7 +94,7 @@ export async function validateTypecheck(
   if (cfg.library === undefined) return;
   const library = resolveLibrary(cfg.library, root);
   const options = compilerOptions(ts);
-  const virtualDir = toTsPath(path.join(path.resolve(root), '.skillbe-typecheck'));
+  const virtualDir = toTsPath(path.join(path.resolve(root), '.skill-be-typecheck'));
   const host = createHost(ts, options, library);
   libraryExports(ts, host, options, library, virtualDir, TYPECHECK_LIBRARY);
 }
@@ -148,7 +148,7 @@ async function runCommand(
       stdin: block.code + '\n',
       timeoutMs: COMMAND_TIMEOUT_MS,
       cwd: root,
-      env: { ...process.env, SKILLBE_LANG: block.lang, SKILLBE_SKILL: suite.name },
+      env: { ...process.env, SKILL_BE_LANG: block.lang, SKILL_BE_SKILL: suite.name },
     }).catch((error: unknown) => {
       throw new ConfigError(`the typecheck command failed to start (${(error as Error).message})`);
     });
@@ -184,7 +184,7 @@ async function compile(
   const preludePath = prelude === undefined ? undefined : preludeFile(suite.name, prelude, root);
 
   // Virtual files live under the root, so a package name resolves from the root's node_modules.
-  const virtualDir = toTsPath(path.join(path.resolve(root), '.skillbe-typecheck', suite.name));
+  const virtualDir = toTsPath(path.join(path.resolve(root), '.skill-be-typecheck', suite.name));
   const host = createHost(ts, options, library);
 
   const exports =

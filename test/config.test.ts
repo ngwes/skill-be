@@ -25,14 +25,14 @@ const SPEC_TEMPLATE = [
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(os.tmpdir(), 'skillbe-config-'));
+  dir = await mkdtemp(path.join(os.tmpdir(), 'skill-be-config-'));
 });
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-async function write(yaml: string, name = 'skillbe.yaml'): Promise<string> {
+async function write(yaml: string, name = 'skill-be.yaml'): Promise<string> {
   const file = path.join(dir, name);
   await writeFile(file, yaml);
   return file;
@@ -64,8 +64,8 @@ describe('loadConfig defaults', () => {
       gradings: 3,
       concurrency: 4,
       timeoutSeconds: 120,
-      results: path.join(dir, '.skillbe', 'results'),
-      resultFile: path.join(dir, 'skillbe.result.json'),
+      results: path.join(dir, '.skill-be', 'results'),
+      resultFile: path.join(dir, 'skill-be.result.json'),
       withSkillTemplate: SPEC_TEMPLATE,
       graderPrompt: null,
       gate: { regressionOnCritical: true, blockOnZero: true, blockOnErrors: true },
@@ -83,7 +83,7 @@ describe('loadConfig defaults', () => {
   it('resolves paths relative to the config file, not the working directory', async () => {
     const nested = path.join(dir, 'conf');
     await mkdir(nested);
-    const file = await write(MINIMAL.replace('./skills', '../shared/skills'), 'conf/skillbe.yaml');
+    const file = await write(MINIMAL.replace('./skills', '../shared/skills'), 'conf/skill-be.yaml');
 
     const config = await loadConfig(file, { typescriptInstalled: () => true });
 
@@ -91,7 +91,7 @@ describe('loadConfig defaults', () => {
     expect(config.configPath).toBe(file);
     expect(config.skills).toBe(path.join(dir, 'shared', 'skills'));
     expect(config.evals).toBe(path.join(nested, 'evals'));
-    expect(config.resultFile).toBe(path.join(nested, 'skillbe.result.json'));
+    expect(config.resultFile).toBe(path.join(nested, 'skill-be.result.json'));
   });
 
   it('accepts a config path relative to the working directory', async () => {
@@ -430,7 +430,7 @@ describe('loadConfig errors', () => {
   it('names the config file in the message', async () => {
     const error = await failure(SKILLS + GRADER);
 
-    expect(error.message).toContain(path.join(dir, 'skillbe.yaml'));
+    expect(error.message).toContain(path.join(dir, 'skill-be.yaml'));
   });
 
   it('rejects a config file that does not exist', async () => {
@@ -451,7 +451,7 @@ describe('typescriptInstalled', () => {
     expect(typescriptInstalled(repoRoot)).toBe(true);
   });
 
-  it("falls back to skillBe's own install for a root with no node_modules", () => {
+  it("falls back to skill-be's own install for a root with no node_modules", () => {
     expect(typescriptInstalled(dir)).toBe(true);
   });
 });

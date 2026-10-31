@@ -1,13 +1,17 @@
 {
-  "name": "@ngwes/skillbe",
+  "name": "@ngwes/skill-be",
   "version": "0.0.0-development",
   "description": "A CLI that benchmarks Agent Skills: baseline versus with-skill, LLM-graded and gated, on any harness.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ngwes/skillBe.git"
+    "url": "git+https://github.com/ngwes/skill-be.git"
+  },
+  "homepage": "https://ngwes.github.io/skill-be/",
+  "bugs": {
+    "url": "https://github.com/ngwes/skill-be/issues"
   },
   "bin": {
-    "skillbe": "dist/cli.js"
+    "skill-be": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

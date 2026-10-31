@@ -100,7 +100,7 @@ async function entryExports(
   const library = resolveEntry(cfg.entry, root, ENTRY);
   const options = compilerOptions(ts);
   const host = createHost(ts, options, library);
-  const virtualDir = toTsPath(path.join(path.resolve(root), '.skillbe-coverage'));
+  const virtualDir = toTsPath(path.join(path.resolve(root), '.skill-be-coverage'));
   return { ts, ...libraryExports(ts, host, options, library, virtualDir, ENTRY) };
 }
 

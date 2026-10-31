@@ -249,7 +249,7 @@ describe('typecheckSkill with the typescript preset', () => {
     });
 
     it('resolves the package from the root', async () => {
-      root = await mkdtemp(path.join(os.tmpdir(), 'skillbe-typecheck-'));
+      root = await mkdtemp(path.join(os.tmpdir(), 'skill-be-typecheck-'));
       const pkg = path.join(root, 'node_modules', 'boxlib');
       await mkdir(pkg, { recursive: true });
       await copyFile(path.join(FIXTURES, 'lib', 'index.ts'), path.join(pkg, 'index.ts'));
@@ -287,10 +287,10 @@ describe('typecheckSkill with a command', () => {
   });
 });
 
-// Runs against a local checkout of mini-fp-skills (SKILLBE_SKILLS_REPO, its root) and the
-// mini-fp source entry its skills document (SKILLBE_MINI_FP_ENTRY); skipped without both.
-const SKILLS_REPO = process.env.SKILLBE_SKILLS_REPO;
-const MINI_FP_ENTRY = process.env.SKILLBE_MINI_FP_ENTRY;
+// Runs against a local checkout of mini-fp-skills (SKILL_BE_SKILLS_REPO, its root) and the
+// mini-fp source entry its skills document (SKILL_BE_MINI_FP_ENTRY); skipped without both.
+const SKILLS_REPO = process.env.SKILL_BE_SKILLS_REPO;
+const MINI_FP_ENTRY = process.env.SKILL_BE_MINI_FP_ENTRY;
 
 describe.runIf(Boolean(SKILLS_REPO && MINI_FP_ENTRY))('the mini-fp-skills examples', () => {
   const SKILLS = path.join(SKILLS_REPO ?? '', 'skills');
@@ -353,7 +353,7 @@ describe('validateTypecheck', () => {
   });
 
   it('accepts a command without running it', async () => {
-    const cfg: TypecheckConfig = { command: 'skillbe-no-such-binary --check', blocking: true };
+    const cfg: TypecheckConfig = { command: 'skill-be-no-such-binary --check', blocking: true };
 
     await expect(validateTypecheck(cfg, FIXTURES)).resolves.toBeUndefined();
   });
@@ -362,8 +362,8 @@ describe('validateTypecheck', () => {
     ['a library path that does not exist', { ...PRESET, library: './lib/x.ts' }, 'x.ts'],
     [
       'a library package that does not resolve',
-      { ...PRESET, library: 'skillbe-no-such-lib' },
-      'skillbe-no-such-lib',
+      { ...PRESET, library: 'skill-be-no-such-lib' },
+      'skill-be-no-such-lib',
     ],
     ['a missing prelude', { ...PRESET, preludes: { box: './missing.d.ts' } }, 'missing.d.ts'],
     ['a command with an unclosed quote', { command: 'node "x', blocking: true }, 'unclosed quote'],
