@@ -1,4 +1,5 @@
 import { readdirSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -158,7 +159,9 @@ describe('claude-cli', () => {
 
     expect(seen).toHaveLength(2);
     for (const { dir, entries } of seen) {
-      expect(path.relative(ROOT, dir).startsWith('..')).toBe(true);
+      // A fresh directory in the system temp directory, not the project (cwd is ROOT here).
+      expect(path.dirname(dir)).toBe(os.tmpdir());
+      expect(path.basename(dir)).toMatch(/^skill-be-claude-/);
       expect(entries).toEqual([]);
       expect(statSync(dir, { throwIfNoEntry: false })).toBeUndefined();
     }
