@@ -10,6 +10,8 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Either, Option, Try, TryAsync, filterSome, foldAsync } from '@ngwes/mini-fp';
+import { all, check, firstProblem, valueOrThrow, type Checked } from './checked.js';
 import { skillFingerprint } from './fingerprint.js';
 import { ConfigError, type Config, type SkillSuite } from './types.js';
 
@@ -46,20 +48,18 @@ export async function skillBeVersion(): Promise<string> {
  * mistaken for a missing file, which a run would overwrite.
  */
 export async function readResultFile(file: string): Promise<ResultFile | null> {
-  let text: string;
-  try {
-    text = await readFile(file, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw new ConfigError(`cannot read the result file ${file} (${(error as Error).message})`);
-  }
-
-  try {
-    return parseResultFile(parseJson(text));
-  } catch (error) {
-    if (error instanceof ConfigError) throw new ConfigError(`${file}: ${error.message}`);
-    throw error;
-  }
+  const text = await TryAsync.runAsync(() => readFile(file, 'utf8')).match(
+    (content) => Option.some(content),
+    (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return Option.none<string>();
+      throw new ConfigError(`cannot read the result file ${file} (${(error as Error).message})`);
+    },
+  );
+  return text.match<ResultFile | null>(
+    (content) =>
+      valueOrThrow(parseResultFile(content).mapLeft((message) => `${file}: ${message}`)),
+    () => null,
+  );
 }
 
 /**
@@ -79,13 +79,13 @@ export async function writeResultFile(file: string, result: ResultFile): Promise
 
   await mkdir(path.dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}-${randomBytes(4).toString('hex')}.tmp`;
-  try {
+  await TryAsync.runAsync(async () => {
     await writeFile(temp, JSON.stringify(ordered, null, 2) + '\n');
     await rename(temp, file);
-  } catch (error) {
+  }).onFail(async (error) => {
     await rm(temp, { force: true });
     throw error;
-  }
+  });
 }
 
 /**
@@ -93,10 +93,10 @@ export async function writeResultFile(file: string, result: ResultFile): Promise
  * skills, every other entry stays, and the version is the one of the run that updated the file.
  */
 export function mergeResults(existing: ResultFile | null, updates: ResultFile): ResultFile {
-  return {
-    skillBeVersion: updates.skillBeVersion,
-    skills: { ...existing?.skills, ...updates.skills },
-  };
+  const kept = Option.from(existing)
+    .map((file) => file.skills)
+    .orElse({});
+  return { skillBeVersion: updates.skillBeVersion, skills: { ...kept, ...updates.skills } };
 }
 
 /**
@@ -105,95 +105,109 @@ export function mergeResults(existing: ResultFile | null, updates: ResultFile): 
  * problem: no entry, a stale fingerprint, or a verdict that is not READY. Fix the stale ones
  * first: the verdict of an entry that no longer matches the files says nothing.
  */
-export async function verifyResults(
+export function verifyResults(
   config: Config,
   suites: SkillSuite[],
   file: ResultFile | null,
 ): Promise<{ ok: boolean; problems: string[] }> {
-  if (file === null) return { ok: false, problems: ['no result file: run "skill-be run" first'] };
-
-  const problems: string[] = [];
-  for (const suite of suites) {
-    const problem = await problemWith(config, suite, file.skills[suite.name]);
-    if (problem !== undefined) problems.push(problem);
-  }
-  return { ok: problems.length === 0, problems };
+  return Option.from(file).matchAsync(
+    async (results) => {
+      const found = await foldAsync<SkillSuite, Option<string>[]>(
+        suites,
+        [],
+        async (earlier, suite) => [
+          ...earlier,
+          await problemWith(config, suite, results.skills[suite.name]),
+        ],
+      );
+      const problems = filterSome(found);
+      return { ok: problems.length === 0, problems };
+    },
+    () => ({ ok: false, problems: ['no result file: run "skill-be run" first'] }),
+  );
 }
 
-async function problemWith(
+function problemWith(
   config: Config,
   suite: SkillSuite,
   entry: SkillEntry | undefined,
-): Promise<string | undefined> {
+): Promise<Option<string>> {
   const rerun = `run "skill-be run ${suite.name}"`;
-  if (entry === undefined) {
-    return `skill "${suite.name}": no entry in the result file; ${rerun}`;
-  }
-  if (entry.fingerprint !== (await skillFingerprint(config, suite))) {
-    return (
-      `skill "${suite.name}": changed since its last run ` +
-      `(its SKILL.md, its eval file or the config); ${rerun}`
-    );
-  }
-  if (!entry.ready) {
-    const reasons = entry.reasons.length > 0 ? `: ${entry.reasons.join('; ')}` : '';
-    return `skill "${suite.name}": NOT READY in its run of ${entry.date}${reasons}`;
-  }
-  return undefined;
+  return Option.from(entry).matchAsync(
+    async (found) => {
+      if (found.fingerprint !== (await skillFingerprint(config, suite))) {
+        return Option.some(
+          `skill "${suite.name}": changed since its last run ` +
+            `(its SKILL.md, its eval file or the config); ${rerun}`,
+        );
+      }
+      if (found.ready) return Option.none<string>();
+      const reasons = found.reasons.length > 0 ? `: ${found.reasons.join('; ')}` : '';
+      return Option.some(`skill "${suite.name}": NOT READY in its run of ${found.date}${reasons}`);
+    },
+    () => Option.some(`skill "${suite.name}": no entry in the result file; ${rerun}`),
+  );
 }
 
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text.replace(/^﻿/, ''));
-  } catch (error) {
-    throw new ConfigError(`invalid JSON (${(error as Error).message})`);
-  }
+function parseResultFile(text: string): Either<string, ResultFile> {
+  return Try.run(() => JSON.parse(text.replace(/^﻿/, '')) as unknown).match(
+    (data) => firstProblem(resultFile(data)),
+    (error) => Either.left(`invalid JSON (${(error as Error).message})`),
+  );
 }
 
-function parseResultFile(data: unknown): ResultFile {
-  const root = object(data, 'the result file');
-  const skills = object(root.skills, '"skills"');
-
-  const entries: Record<string, SkillEntry> = {};
-  for (const [name, raw] of Object.entries(skills)) {
-    entries[name] = parseEntry(raw, `skills.${name}`);
-  }
-  return { skillBeVersion: string(root.skillBeVersion, '"skillBeVersion"'), skills: entries };
+/** The skills' entries first, in file order, then the version. */
+function resultFile(data: unknown): Checked<ResultFile> {
+  return object(data, 'the result file')
+    .bind((root) =>
+      all({
+        skills: object(root.skills, '"skills"').bind((skills) =>
+          all<Record<string, SkillEntry>>(
+            Object.fromEntries(
+              Object.entries(skills).map(([name, raw]) => [name, parseEntry(raw, `skills.${name}`)]),
+            ),
+          ),
+        ),
+        skillBeVersion: string(root.skillBeVersion, '"skillBeVersion"'),
+      }),
+    )
+    .map(({ skills, skillBeVersion }) => ({ skillBeVersion, skills }));
 }
 
-function parseEntry(raw: unknown, where: string): SkillEntry {
-  const entry = object(raw, `"${where}"`);
+function parseEntry(raw: unknown, where: string): Checked<SkillEntry> {
   const key = (name: string): string => `"${where}.${name}"`;
-  return {
-    date: string(entry.date, key('date')),
-    fingerprint: string(entry.fingerprint, key('fingerprint')),
-    ready: boolean(entry.ready, key('ready')),
-    reasons: stringList(entry.reasons, key('reasons')),
-    models: stringList(entry.models, key('models')),
-    grader: string(entry.grader, key('grader')),
-  };
+  return object(raw, `"${where}"`).bind((entry) =>
+    all({
+      date: string(entry.date, key('date')),
+      fingerprint: string(entry.fingerprint, key('fingerprint')),
+      ready: boolean(entry.ready, key('ready')),
+      reasons: stringList(entry.reasons, key('reasons')),
+      models: stringList(entry.models, key('models')),
+      grader: string(entry.grader, key('grader')),
+    }),
+  );
 }
 
-function object(value: unknown, what: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new ConfigError(`${what} must be an object`);
-  }
-  return value as Record<string, unknown>;
+function object(value: unknown, what: string): Checked<Record<string, unknown>> {
+  return check(
+    typeof value === 'object' && value !== null && !Array.isArray(value),
+    value as Record<string, unknown>,
+    () => `${what} must be an object`,
+  );
 }
 
-function string(value: unknown, what: string): string {
-  if (typeof value !== 'string') throw new ConfigError(`${what} must be a string`);
-  return value;
+function string(value: unknown, what: string): Checked<string> {
+  return check(typeof value === 'string', value as string, () => `${what} must be a string`);
 }
 
-function boolean(value: unknown, what: string): boolean {
-  if (typeof value !== 'boolean') throw new ConfigError(`${what} must be true or false`);
-  return value;
+function boolean(value: unknown, what: string): Checked<boolean> {
+  return check(typeof value === 'boolean', value as boolean, () => `${what} must be true or false`);
 }
 
-function stringList(value: unknown, what: string): string[] {
-  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
-    throw new ConfigError(`${what} must be a list of strings`);
-  }
-  return [...(value as string[])];
+function stringList(value: unknown, what: string): Checked<string[]> {
+  return check(
+    Array.isArray(value) && value.every((item) => typeof item === 'string'),
+    value as string[],
+    () => `${what} must be a list of strings`,
+  ).map((list) => [...list]);
 }
