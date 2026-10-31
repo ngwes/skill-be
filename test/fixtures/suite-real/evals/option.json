@@ -1,0 +1,65 @@
+{
+  "skill": "option",
+  "scenarios": [
+    {
+      "id": "nullable-lookup",
+      "critical": true,
+      "prompt": "Write a TypeScript function that looks up a user by ID from a Map<string, User>. Handle the case where the user doesn't exist. Do not return null or undefined.",
+      "criteria": [
+        "Uses Option.from(), Option.some(), or Option.none() (or the equivalent some()/none()/toOption() functions) instead of null/undefined",
+        "Does not return null or undefined directly from the function",
+        "Uses .match() or .orElse() to handle the absent case at the call site"
+      ]
+    },
+    {
+      "id": "chain-optional-steps",
+      "critical": true,
+      "prompt": "Write TypeScript: given a user ID, get the user from a cache (Map<string, User>), then get their profile (Map<string, Profile>), then get their avatar URL (profile.avatarUrl may be undefined). Each step may return nothing. Chain these safely without nested null checks.",
+      "criteria": [
+        "Uses .bind() or .bindAsync() to chain optional steps (.map() is also acceptable for reading a field that may be undefined, since map turns null/undefined into none)",
+        "Does not use nested if/null checks between steps",
+        "The chain stops at the first absent value without explicit branching"
+      ]
+    },
+    {
+      "id": "async-nullable-noisy-context",
+      "critical": false,
+      "prompt": "Express + Redis + Prisma app. Write an async function that gets a session token from Redis (returns string | null), validates it to get a user ID (async, may return null), then loads the user from Prisma (may return null). Return a 404 response if any step returns nothing.",
+      "criteria": [
+        "Uses Option for absent values instead of null checks",
+        "Uses Option.fromAsync() and/or .bindAsync() for the async optional steps",
+        "Produces the 404/success response with .match() or .orElse() on the async Option chain (these return a Promise there), or with .matchAsync()/.orElseAsync()"
+      ]
+    },
+    {
+      "id": "theme-fallback-chain",
+      "critical": true,
+      "prompt": "Write TypeScript: resolve a user's UI theme. Read it from userSettings (Map<string, string>, keyed by user ID); the stored value may be missing or may be an unsupported string, and only 'light', 'dark' and 'system' are valid. When the user has no valid theme, write a debug log line, then fall back to the organization default from orgSettings (Map<string, string>, same rules: may be missing or invalid). If that also yields nothing, use 'system'. Write it as one chain, without if statements or null checks.",
+      "criteria": [
+        "Drops a theme that is not one of the supported values with .filter() on the Option or with the noneWhen predicate of Option.from(value, noneWhen) (instead of an if or a ternary)",
+        "Falls back to the organization default with .bindNone() or .mapNone() on the Option chain (not with nested null checks or by unwrapping the first Option)",
+        "Logs the debug line with .onNone() (or .onSome() for the found case) inside the chain, and still ends with .orElse('system') or .match() to produce the final string"
+      ]
+    },
+    {
+      "id": "cache-then-db-to-either",
+      "critical": false,
+      "prompt": "Write TypeScript: get a product by SKU. First look in an in-memory cache (Map<string, Product>); if it is not there, load it from the database with db.findProduct(sku): Promise<Product | null>. Write a debug log whenever a product is found. Return an async result that is either a NotFoundError (which must include the SKU) or the Product, so the HTTP layer can turn it into a 404.",
+      "criteria": [
+        "Falls back to the async database load with .bindNoneAsync() or .mapNoneAsync() on the cache Option, instead of an if/else on the cache result",
+        "Converts the Option (or OptionAsync) into an Either with its .toEither(...) method, passing a NotFoundError value or factory that includes the SKU",
+        "Logs found products with .onSome() in the chain, not with a separate isSome() check or an if"
+      ]
+    },
+    {
+      "id": "loyalty-tier-guards-noisy",
+      "critical": false,
+      "prompt": "NestJS + TypeORM service. Load a customer's loyalty points from the repository (findPoints(customerId): number | undefined). Map the points to a tier: 10000 or more is 'gold', 5000 or more is 'silver', anything else is 'bronze'. Then pick a coupon for the tier: gold customers get a personal coupon from couponService.personal(customerId): Promise<Coupon>, silver and bronze customers get couponService.standard(tier): Promise<Coupon>. A customer without points gets no coupon. Avoid if/else ladders and nested ternaries; the method returns the coupon as an optional value.",
+      "criteria": [
+        "Uses .guardMap() with [when, then] guard pairs (and an otherwise function) to map the points to a tier, instead of if/else or a chain of ternaries",
+        "Uses .guardMapAsync() or .guardBindAsync() to choose between the personal and the standard coupon call",
+        "Returns an Option/OptionAsync (or a Promise of an Option) for the coupon, never null/undefined, and an absent customer skips the tier and coupon steps"
+      ]
+    }
+  ]
+}

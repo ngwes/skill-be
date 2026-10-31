@@ -1,0 +1,50 @@
+{
+  "name": "@ngwes/skillbe",
+  "version": "0.0.0-development",
+  "description": "A CLI that benchmarks Agent Skills: baseline versus with-skill, LLM-graded and gated, on any harness.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ngwes/skillBe.git"
+  },
+  "bin": {
+    "skillbe": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "husky"
+  },
+  "author": "ngwes",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "yaml": "^2.9.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0 || ^6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@types/node": "^25.9.9",
+    "husky": "^9.1.7",
+    "semantic-release": "^25.0.9",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.12"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

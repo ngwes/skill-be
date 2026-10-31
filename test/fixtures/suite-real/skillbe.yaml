@@ -1,0 +1,8 @@
+skills: ./skills
+evals: ./evals
+model:
+  adapter: command
+  id: fake
+grader:
+  adapter: command
+  id: fake

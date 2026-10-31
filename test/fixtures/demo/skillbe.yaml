@@ -1,0 +1,33 @@
+skills: ./skills
+evals: ./evals
+
+# The model under test and the judge. For apiKeyEnv, see "Credentials" in skillBe's README.
+model:
+  adapter: claude-cli
+  id: claude-sonnet-5-5
+  apiKeyEnv: ANTHROPIC_API_KEY
+grader:
+  adapter: claude-cli
+  id: claude-haiku-5-5
+  apiKeyEnv: ANTHROPIC_API_KEY
+
+# Small, so a first run is quick and cheap: 3 scenarios x 2 reps x 2 arms = 12 generations,
+# each graded once. The defaults are 3 reps and 3 gradings.
+reps: 2
+gradings: 1
+
+withSkillTemplate: |-
+  You have access to the following TypeScript library. Use its APIs when writing the code.
+
+  --- LIBRARY DOCS ---
+  {{skill}}
+  --- END LIBRARY DOCS ---
+
+  Task: {{task}}
+
+checks:
+  typecheck:
+    library: ./lib/index.ts
+  coverage:
+    entry: ./lib/index.ts
+    blocking: true

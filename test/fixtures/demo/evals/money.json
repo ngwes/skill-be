@@ -1,0 +1,34 @@
+{
+  "skill": "money",
+  "scenarios": [
+    {
+      "id": "split-the-bill",
+      "critical": true,
+      "prompt": "Write a TypeScript function that splits a restaurant bill between a number of people. It takes the total in euros (for example 100.00) and the number of people, and returns each person's share. The shares must add up exactly to the total, to the cent.",
+      "criteria": [
+        "Represents the bill and the shares as Money values (or whole cents), not as floating-point euro amounts",
+        "Splits the total with allocate (or another whole-cent method that hands out the leftover cents), not by dividing a floating-point total",
+        "The shares it returns always add up exactly to the total"
+      ]
+    },
+    {
+      "id": "order-total-with-vat",
+      "critical": true,
+      "prompt": "Write a TypeScript function for a checkout page. It receives the cart lines, each with a unit price in euros and a quantity, adds 20% VAT to the total, and returns the total as a string ready to show to the customer.",
+      "criteria": [
+        "Converts each unit price into a Money value (Money.of) instead of keeping euro amounts as plain numbers",
+        "Computes the line totals and the VAT with multiply, and adds the lines with add or sum",
+        "Produces the display string with format, not with toFixed or string concatenation"
+      ]
+    },
+    {
+      "id": "wallet-in-several-currencies",
+      "critical": false,
+      "prompt": "A user's wallet holds payments that may be in EUR, USD or GBP. Write a TypeScript function that returns the total of the payments in a given currency, and reports a clear error instead of silently adding amounts in different currencies together.",
+      "criteria": [
+        "Adds the amounts with Money's add or sum rather than adding plain numbers",
+        "Detects mixed currencies by catching CurrencyMismatchError or by comparing each payment's currency, and reports it instead of adding the amounts"
+      ]
+    }
+  ]
+}

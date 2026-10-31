@@ -1,0 +1,17 @@
+{
+  "skill": "a",
+  "scenarios": [
+    {
+      "id": "double-a-number",
+      "critical": true,
+      "prompt": "Write a TypeScript function that returns twice the value it is given.",
+      "criteria": ["Calls double() instead of multiplying", "Returns a number"]
+    },
+    {
+      "id": "double-a-list",
+      "critical": false,
+      "prompt": "Write a TypeScript function that doubles every number in a list.",
+      "criteria": ["Maps the list with double()"]
+    }
+  ]
+}
