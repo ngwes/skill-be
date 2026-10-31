@@ -5,6 +5,7 @@
  */
 
 import { Either, Validate, sequenceValidate } from '@ngwes/mini-fp';
+import { ConfigError } from './types.js';
 
 /** A checked value, or the messages saying what is wrong with it, in the order they were found. */
 export type Checked<T> = Validate<string, T>;
@@ -41,5 +42,15 @@ export function firstProblem<T>(checked: Checked<T>): Either<string, T> {
   return checked.match<Either<string, T>>(
     (value) => Either.right(value),
     (messages) => Either.left(messages[0] as string),
+  );
+}
+
+/** The value, or a `ConfigError` with the message: where a checked result meets code that throws. */
+export function valueOrThrow<T>(result: Either<string, T>): T {
+  return result.match(
+    (value) => value,
+    (message) => {
+      throw new ConfigError(message);
+    },
   );
 }

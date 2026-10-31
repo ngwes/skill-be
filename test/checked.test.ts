@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { all, check, fail, firstProblem, pass } from '../src/checked.js';
+import { all, check, fail, firstProblem, pass, valueOrThrow } from '../src/checked.js';
 import { loadConfig } from '../src/config.js';
 
 describe('checked helpers', () => {
@@ -63,5 +63,17 @@ describe('loadConfig with several problems', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('valueOrThrow', () => {
+  it('returns the right value', () => {
+    expect(valueOrThrow(firstProblem(pass('ok')))).toBe('ok');
+  });
+
+  it('throws a ConfigError with the left message', () => {
+    expect(() => valueOrThrow(firstProblem(fail('broken')))).toThrow(
+      expect.objectContaining({ name: 'ConfigError', message: 'broken' }),
+    );
   });
 });
