@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Either, Option, Try, TryAsync } from '@ngwes/mini-fp';
 import type { Declaration, Symbol as TsSymbol, TypeChecker } from 'typescript';
 import { splitCommandLine } from '../adapters/command.js';
-import { runProcess } from '../process.js';
+import { valueOrThrow } from '../checked.js';
+import { runProcess, type ProcessResult } from '../process.js';
 import { ConfigError, type CoverageConfig, type SkillSuite } from '../types.js';
 import {
   compilerOptions,
@@ -45,10 +47,10 @@ export async function coverage(
   root: string,
   deps: CoverageDeps = {},
 ): Promise<CoverageResult> {
-  const api =
-    cfg.command !== undefined
-      ? await commandApi(cfg.command, root)
-      : await typescriptApi(cfg, root, deps);
+  const api = await Option.from(cfg.command).matchAsync(
+    (command) => commandApi(command, root),
+    () => typescriptApi(cfg, root, deps),
+  );
   const ignored = new Set(cfg.ignore);
   const text = (await Promise.all(suites.map(mentionableText))).flat().join('\n');
 
@@ -71,16 +73,20 @@ export async function validateCoverage(
   root: string,
   deps: CoverageDeps = {},
 ): Promise<void> {
-  if (cfg.command !== undefined) commandWords(cfg.command);
-  else await entryExports(cfg, root, deps);
+  await Option.from(cfg.command).matchAsync(
+    (command) => void commandWords(command),
+    async () => void (await entryExports(cfg, root, deps)),
+  );
 }
 
 /** The command and its arguments, from `checks.coverage.command`. */
 function commandWords(command: string): [string, ...string[]] {
-  const [bin, ...args] = splitCommandLine(command, '"checks.coverage.command"');
-  if (bin === undefined || bin === '') {
-    throw new ConfigError(`"checks.coverage.command" has no command: ${command}`);
-  }
+  const [first, ...args] = splitCommandLine(command, '"checks.coverage.command"');
+  const bin = valueOrThrow(
+    Option.from(first)
+      .filter((word) => word !== '')
+      .toEither(() => `"checks.coverage.command" has no command: ${command}`),
+  );
   return [bin, ...args];
 }
 
@@ -90,16 +96,17 @@ async function entryExports(
   root: string,
   deps: CoverageDeps,
 ): Promise<{ ts: TypeScript; checker: TypeChecker; symbols: TsSymbol[] }> {
-  if (cfg.entry === undefined) {
-    throw new ConfigError(
-      'the typescript coverage preset needs "checks.coverage.entry", the source entry file of ' +
+  const entry = valueOrThrow(
+    Option.from(cfg.entry).toEither(
+      () =>
+        'the typescript coverage preset needs "checks.coverage.entry", the source entry file of ' +
         'the library; or set "checks.coverage.command" to list the API with a command',
-    );
-  }
+    ),
+  );
   const ts = await loadTypescript('coverage', root, deps);
-  const library = resolveEntry(cfg.entry, root, ENTRY);
+  const library = resolveEntry(entry, root, ENTRY);
   const options = compilerOptions(ts);
-  const host = createHost(ts, options, library);
+  const host = createHost(ts, options, Option.some(library));
   const virtualDir = toTsPath(path.join(path.resolve(root), '.skill-be-coverage'));
   return { ts, ...libraryExports(ts, host, options, library, virtualDir, ENTRY) };
 }
@@ -108,24 +115,30 @@ async function entryExports(
 async function commandApi(command: string, root: string): Promise<ApiName[]> {
   const [bin, ...args] = commandWords(command);
 
-  const result = await runProcess({
-    bin,
-    args,
-    stdin: '',
-    timeoutMs: COMMAND_TIMEOUT_MS,
-    cwd: root,
-  }).catch((error: unknown) => {
+  const started = await TryAsync.runAsync(() =>
+    runProcess({ bin, args, stdin: '', timeoutMs: COMMAND_TIMEOUT_MS, cwd: root }),
+  ).onFail((error) => {
     throw new ConfigError(`the coverage command failed to start (${(error as Error).message})`);
   });
-  if (result.timedOut) {
-    throw new ConfigError(`the coverage command timed out after ${COMMAND_TIMEOUT_MS / 1000} s`);
-  }
-  if (result.code !== 0) {
-    const output = (result.stderr.trim() || result.stdout.trim()).slice(-2000);
-    throw new ConfigError(
-      `the coverage command failed (exit code ${result.code})${output === '' ? '' : `: ${output}`}`,
-    );
-  }
+  const result = valueOrThrow(
+    Either.right<string, ProcessResult>(started).guardBind<ProcessResult>(
+      (finished) => Either.right<string, ProcessResult>(finished),
+      [
+        (finished) => finished.timedOut,
+        () => Either.left(`the coverage command timed out after ${COMMAND_TIMEOUT_MS / 1000} s`),
+      ],
+      [
+        (finished) => finished.code !== 0,
+        (finished) => {
+          const output = (finished.stderr.trim() || finished.stdout.trim()).slice(-2000);
+          return Either.left(
+            `the coverage command failed (exit code ${finished.code})` +
+              `${output === '' ? '' : `: ${output}`}`,
+          );
+        },
+      ],
+    ),
+  );
   return result.stdout
     .split('\n')
     .map((line) => line.trim())
@@ -191,17 +204,16 @@ function isPublic(ts: TypeScript, declaration: Declaration): boolean {
  * escapes (`\n`) would glue a name to the letter before it.
  */
 async function mentionableText(suite: SkillSuite): Promise<string[]> {
-  let evalText: string;
-  try {
-    evalText = (await readFile(suite.evalPath, 'utf8')).replace(/^﻿/, '');
-  } catch (error) {
-    throw new ConfigError(`cannot read ${suite.evalPath} (${(error as Error).message})`);
-  }
-  try {
-    return [suite.skillText, ...stringsOf(JSON.parse(evalText))];
-  } catch {
-    return [suite.skillText, evalText];
-  }
+  const evalText = await TryAsync.runAsync(() => readFile(suite.evalPath, 'utf8')).match(
+    (text) => text.replace(/^﻿/, ''),
+    (error) => {
+      throw new ConfigError(`cannot read ${suite.evalPath} (${(error as Error).message})`);
+    },
+  );
+  return Try.run(() => [suite.skillText, ...stringsOf(JSON.parse(evalText))]).onFail([
+    suite.skillText,
+    evalText,
+  ]);
 }
 
 function stringsOf(value: unknown): string[] {

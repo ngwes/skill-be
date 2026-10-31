@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Option } from '@ngwes/mini-fp';
 import { runProcess } from '../process.js';
 import type { AdapterSettings } from '../types.js';
 import {
@@ -53,7 +54,7 @@ export function createClaudeCli(run: Runner = runProcess): Adapter {
   return async (prompt, { settings, timeoutMs, cwd }) => {
     const bin = binSetting(settings, 'claude');
     const args = buildArgs(settings);
-    const key = apiKeyFromEnv(settings);
+    const key = Option.from(apiKeyFromEnv(settings));
     const work = await mkdtemp(path.join(os.tmpdir(), 'skill-be-claude-'));
     try {
       const result = await runCli(
@@ -67,10 +68,16 @@ export function createClaudeCli(run: Runner = runProcess): Adapter {
           env: {
             ...process.env,
             CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
-            ...(key === undefined ? {} : { ANTHROPIC_API_KEY: key }),
+            ...key.match(
+              (value) => ({ ANTHROPIC_API_KEY: value }),
+              () => ({}),
+            ),
           },
         },
-        { label: `claude-cli (${settings.id})`, secrets: key === undefined ? [] : [key] },
+        {
+          label: `claude-cli (${settings.id})`,
+          secrets: key.match((value) => [value], () => []),
+        },
       );
       return result.stdout.trim();
     } finally {

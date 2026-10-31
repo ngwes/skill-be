@@ -6,6 +6,7 @@
  * `**BLOCKED**` and `[ERROR]` keep working.
  */
 
+import { Option } from '@ngwes/mini-fp';
 import type { SkillRun } from './runner.js';
 import type { Config } from './types.js';
 
@@ -60,7 +61,12 @@ export function evaluateGate(run: SkillRun, gate: Config['gate']): GateVerdict {
 
   for (const { scenario, models } of run.scenarios) {
     scenario.criteria.forEach((criterion, c) => {
-      const zeroEverywhere = models.every((model) => (model.criteria[c]?.withSkillPct ?? 0) === 0);
+      const zeroEverywhere = models.every(
+        (model) =>
+          Option.from(model.criteria[c])
+            .map((score) => score.withSkillPct)
+            .orElse(0) === 0,
+      );
       if (gate.blockOnZero && zeroEverywhere) {
         block(`**BLOCKED** (universal 0%): \`${scenario.id}\` — criterion: *"${criterion}"*`, {
           kind: 'zero',
@@ -71,13 +77,14 @@ export function evaluateGate(run: SkillRun, gate: Config['gate']): GateVerdict {
 
       if (gate.regressionOnCritical && scenario.critical) {
         for (const model of models) {
-          const score = model.criteria[c];
-          if (score && score.withSkillPct < score.baselinePct) {
-            block(
-              `**BLOCKED** (regression): \`${scenario.id}\` / ${model.model} — *"${criterion}"*: ${score.baselinePct}% → ${score.withSkillPct}% (${fmtDelta(score.withSkillPct - score.baselinePct)})`,
-              { kind: 'regression', scenario: scenario.id, criterion: c, model: model.model },
+          Option.from(model.criteria[c])
+            .filter((score) => score.withSkillPct < score.baselinePct)
+            .onSome((score) =>
+              block(
+                `**BLOCKED** (regression): \`${scenario.id}\` / ${model.model} — *"${criterion}"*: ${score.baselinePct}% → ${score.withSkillPct}% (${fmtDelta(score.withSkillPct - score.baselinePct)})`,
+                { kind: 'regression', scenario: scenario.id, criterion: c, model: model.model },
+              ),
             );
-          }
         }
       }
     });

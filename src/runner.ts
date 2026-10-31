@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Option, TryAsync, repeatWhile } from '@ngwes/mini-fp';
 import { isConfigProblem, resolveAdapter, type Adapter } from './adapters/index.js';
 import { gradeOutput, type Verdicts } from './grader.js';
 import { createLimiter } from './limiter.js';
@@ -121,37 +122,39 @@ export async function runSkill(
     tag: string,
   ): Promise<OutputResult> {
     const t0 = Date.now();
-    let output: string;
-    try {
-      output = await call(model.adapter, model.settings, prompt);
-    } catch (error) {
-      // A config problem is the user's to fix: it stops the run (exit 2), not an output error.
-      if (isConfigProblem(error)) throw error;
-      const message = oneLine(error instanceof Error ? error.message : String(error));
-      await writeFile(`${file}.md`, `[ERROR: ${message}]\n`);
-      log(`  ${tag}: generation failed — ${message.slice(0, 200)}`);
-      return {
-        verdicts: null,
-        notes: [`[ERROR] generation failed, criteria counted as 0: ${message}`],
-      };
-    }
-    await writeFile(`${file}.md`, output);
+    return TryAsync.runAsync(() => call(model.adapter, model.settings, prompt)).match(
+      async (output) => {
+        await writeFile(`${file}.md`, output);
 
-    const graded = await gradeOutput(
-      scenario.criteria,
-      output,
-      grade,
-      config.gradings,
-      config.graderPrompt ?? undefined,
+        const graded = await gradeOutput(
+          scenario.criteria,
+          output,
+          grade,
+          config.gradings,
+          config.graderPrompt ?? undefined,
+        );
+        await Promise.all(
+          graded.rawAnswers.map((answer, k) => writeFile(`${file}.grading-${k + 1}.md`, answer)),
+        );
+        const outcome = Option.from(graded.verdicts).match(
+          (verdicts) => `${verdicts.reduce<number>((sum, v) => sum + v, 0)}/${verdicts.length} YES`,
+          () => 'grading FAILED',
+        );
+        log(`  ${tag}: ${outcome} (${seconds(Date.now() - t0)})`);
+        return { verdicts: graded.verdicts, notes: graded.notes };
+      },
+      async (error) => {
+        // A config problem is the user's to fix: it stops the run (exit 2), not an output error.
+        if (isConfigProblem(error)) throw error;
+        const message = oneLine(error instanceof Error ? error.message : String(error));
+        await writeFile(`${file}.md`, `[ERROR: ${message}]\n`);
+        log(`  ${tag}: generation failed — ${message.slice(0, 200)}`);
+        return {
+          verdicts: null,
+          notes: [`[ERROR] generation failed, criteria counted as 0: ${message}`],
+        };
+      },
     );
-    await Promise.all(
-      graded.rawAnswers.map((answer, k) => writeFile(`${file}.grading-${k + 1}.md`, answer)),
-    );
-    const outcome = graded.verdicts
-      ? `${graded.verdicts.reduce<number>((sum, v) => sum + v, 0)}/${graded.verdicts.length} YES`
-      : 'grading FAILED';
-    log(`  ${tag}: ${outcome} (${seconds(Date.now() - t0)})`);
-    return { verdicts: graded.verdicts, notes: graded.notes };
   }
 
   /** Both arms of one rep, run side by side. */
@@ -292,8 +295,11 @@ function uniqueSegments(names: readonly string[]): string[] {
   const used = new Set<string>();
   return names.map((name) => {
     const safe = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '_') || '_';
-    let unique = safe;
-    for (let n = 2; used.has(unique.toLowerCase()); n++) unique = `${safe}-${n}`;
+    const { unique } = repeatWhile(
+      () => ({ unique: safe, next: 2 }),
+      (candidate) => used.has(candidate.unique.toLowerCase()),
+      ({ next }) => ({ unique: `${safe}-${next}`, next: next + 1 }),
+    );
     used.add(unique.toLowerCase());
     return unique;
   });

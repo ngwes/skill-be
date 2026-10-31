@@ -8,6 +8,7 @@
  * with a re-check of the grader's accuracy.
  */
 
+import { Option, TryAsync, repeatWhileAsync, traverseOption } from '@ngwes/mini-fp';
 import { isConfigProblem } from './adapters/common.js';
 
 /** One 0 (NO) or 1 (YES) verdict per criterion, in criterion order. */
@@ -95,12 +96,10 @@ export function parseVerdicts(answer: string, n: number): Verdicts | null {
     found[index] = /^yes$/i.test(match[2] ?? '') ? 1 : 0;
   }
 
-  const verdicts: Verdicts = [];
-  for (const verdict of found) {
-    if (verdict === null) return null;
-    verdicts.push(verdict);
-  }
-  return verdicts;
+  return traverseOption(found.map((verdict) => Option.from(verdict))).match<Verdicts | null>(
+    (verdicts) => verdicts,
+    () => null,
+  );
 }
 
 /**
@@ -143,40 +142,43 @@ export function vote(
   const withReason = (text: string, reason: string | undefined): string =>
     reason === undefined ? text : `${text}: ${reason}`;
 
-  const first = succeeded[0];
-  if (!first) {
-    return {
+  return Option.from(succeeded[0]).match<{ verdicts: Verdicts | null; notes: string[] }>(
+    (first) => {
+      const notes = failures.map((reason) =>
+        withReason(
+          `[NOTE] 1 of ${gradings.length} gradings failed after retry and was left out of the vote`,
+          reason,
+        ),
+      );
+
+      const verdicts: Verdicts = [];
+      const ties: number[] = [];
+      for (let c = 0; c < first.length; c++) {
+        const yes = succeeded.reduce((sum, grading) => sum + (grading[c] ?? 0), 0);
+        if (yes * 2 === succeeded.length) ties.push(c + 1);
+        verdicts.push(yes * 2 > succeeded.length ? 1 : 0);
+      }
+      if (ties.length > 0) {
+        notes.push(
+          `[NOTE] criteri${ties.length === 1 ? 'on' : 'a'} ${ties.join(', ')} tied between ` +
+            `${succeeded.length} gradings, counted as NO`,
+        );
+      }
+      return { verdicts, notes };
+    },
+    () => ({
       verdicts: null,
       notes: [
         withReason('[ERROR] every grading failed after retry, criteria counted as 0', failures[0]),
       ],
-    };
-  }
-
-  const notes = failures.map((reason) =>
-    withReason(
-      `[NOTE] 1 of ${gradings.length} gradings failed after retry and was left out of the vote`,
-      reason,
-    ),
+    }),
   );
-
-  const verdicts: Verdicts = [];
-  const ties: number[] = [];
-  for (let c = 0; c < first.length; c++) {
-    const yes = succeeded.reduce((sum, grading) => sum + (grading[c] ?? 0), 0);
-    if (yes * 2 === succeeded.length) ties.push(c + 1);
-    verdicts.push(yes * 2 > succeeded.length ? 1 : 0);
-  }
-  if (ties.length > 0) {
-    notes.push(
-      `[NOTE] criteri${ties.length === 1 ? 'on' : 'a'} ${ties.join(', ')} tied between ` +
-        `${succeeded.length} gradings, counted as NO`,
-    );
-  }
-  return { verdicts, notes };
 }
 
 type Attempt = { verdicts: Verdicts | null; rawAnswer: string; problem: string };
+
+/** The calls of one grading so far: how many, the last reply that came back, why it failed. */
+type Calls = { count: number; verdicts: Option<Verdicts>; answer: Option<string>; problem: string };
 
 /**
  * One grading: calls the grader and parses the reply; a reply that cannot be parsed, or a call
@@ -190,24 +192,44 @@ async function gradeOnce(
   prompt: string,
   n: number,
 ): Promise<Attempt> {
-  let problem = '';
-  let rawAnswer: string | null = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    let answer: string;
-    try {
-      answer = await grade(prompt);
-    } catch (error) {
-      // A config problem is the user's to fix: it stops the run instead of failing a grading.
-      if (isConfigProblem(error)) throw error;
-      problem = error instanceof Error ? error.message : String(error);
-      continue;
-    }
-    rawAnswer = answer;
-    const verdicts = parseVerdicts(answer, n);
-    if (verdicts) return { verdicts, rawAnswer, problem: '' };
-    problem = `unparseable grader answer: ${JSON.stringify(answer.slice(-200))}`;
-  }
-  return { verdicts: null, rawAnswer: rawAnswer ?? `[ERROR: ${problem}]`, problem };
+  const call = (previous: Calls): Promise<Calls> =>
+    TryAsync.runAsync(() => grade(prompt)).match<Calls>(
+      (answer) => {
+        const verdicts = Option.from(parseVerdicts(answer, n));
+        return {
+          count: previous.count + 1,
+          verdicts,
+          answer: Option.some(answer),
+          problem: verdicts.match(
+            () => '',
+            () => `unparseable grader answer: ${JSON.stringify(answer.slice(-200))}`,
+          ),
+        };
+      },
+      (error) => {
+        // A config problem is the user's to fix: it stops the run instead of failing a grading.
+        if (isConfigProblem(error)) throw error;
+        return {
+          ...previous,
+          count: previous.count + 1,
+          problem: error instanceof Error ? error.message : String(error),
+        };
+      },
+    );
+
+  const last = await repeatWhileAsync(
+    () => call({ count: 0, verdicts: Option.none(), answer: Option.none(), problem: '' }),
+    (calls) => calls.verdicts.isNone() && calls.count < 2,
+    call,
+  );
+  return {
+    verdicts: last.verdicts.match<Verdicts | null>(
+      (verdicts) => verdicts,
+      () => null,
+    ),
+    rawAnswer: last.answer.orElse(() => `[ERROR: ${last.problem}]`),
+    problem: last.problem,
+  };
 }
 
 /**

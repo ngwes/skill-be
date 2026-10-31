@@ -1,3 +1,5 @@
+import { Option } from '@ngwes/mini-fp';
+
 /** Returns a function that runs tasks with at most `n` of them in flight at once, in call order. */
 export function createLimiter(n: number): <T>(task: () => Promise<T>) => Promise<T> {
   if (!Number.isInteger(n) || n < 1) {
@@ -8,10 +10,10 @@ export function createLimiter(n: number): <T>(task: () => Promise<T>) => Promise
 
   const startNext = (): void => {
     if (active >= n) return;
-    const start = waiting.shift();
-    if (!start) return;
-    active++;
-    start();
+    Option.from(waiting.shift()).onSome((start) => {
+      active++;
+      start();
+    });
   };
 
   return <T>(task: () => Promise<T>) =>

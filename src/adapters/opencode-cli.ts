@@ -41,6 +41,7 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Option, Try, TryAsync } from '@ngwes/mini-fp';
 import { runProcess } from '../process.js';
 import type { AdapterSettings } from '../types.js';
 import {
@@ -112,7 +113,7 @@ export function createOpencodeCli(run: Runner = runProcess): Adapter {
   return async (prompt, { settings, timeoutMs }) => {
     const args = buildArgs(settings);
     const provider = requiredSetting(settings, 'provider');
-    const key = apiKeyFromEnv(settings);
+    const key = Option.from(apiKeyFromEnv(settings));
     const label = `opencode-cli (${provider}/${settings.id})`;
 
     const base = await mkdtemp(path.join(os.tmpdir(), 'skill-be-opencode-'));
@@ -128,11 +129,11 @@ export function createOpencodeCli(run: Runner = runProcess): Adapter {
         OPENCODE_TEST_HOME: base,
       };
       for (const name of INHERITED_CONFIG_VARS) delete env[name];
-      if (key !== undefined) {
-        env.OPENCODE_AUTH_CONTENT = JSON.stringify({ [provider]: { type: 'api', key } });
-      }
+      key.onSome((value) => {
+        env.OPENCODE_AUTH_CONTENT = JSON.stringify({ [provider]: { type: 'api', key: value } });
+      });
 
-      const secrets = key === undefined ? [] : [key];
+      const secrets = key.match((value) => [value], () => []);
       const result = await runCli(
         run,
         {
@@ -146,15 +147,14 @@ export function createOpencodeCli(run: Runner = runProcess): Adapter {
         {
           label,
           secrets,
-          failure: (failed) => errorMessage(events(failed.stdout)) ?? failed.stderr,
+          failure: (failed) => errorMessage(events(failed.stdout)).orElse(failed.stderr),
         },
       );
 
       const answer = events(result.stdout);
-      const error = errorMessage(answer);
-      if (error !== undefined) {
+      errorMessage(answer).onSome((error) => {
         throw new AdapterError(`${label} failed: ${redactSecrets(error, secrets)}`, 'exit');
-      }
+      });
       const texts = answer.flatMap((event) =>
         event.type === 'text' && typeof event.part?.text === 'string' ? [event.part.text] : [],
       );
@@ -162,9 +162,9 @@ export function createOpencodeCli(run: Runner = runProcess): Adapter {
       return texts.join('\n').trim();
     } finally {
       // Best effort: a file a killed child still holds must not turn an answer into an error.
-      await rm(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(
-        () => {},
-      );
+      await TryAsync.runAsync(() =>
+        rm(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+      ).onFail(() => {});
     }
   };
 }
@@ -179,20 +179,18 @@ type OpencodeEvent = {
 function events(stdout: string): OpencodeEvent[] {
   return stdout.split(/\r?\n/).flatMap((line) => {
     if (!line.trimStart().startsWith('{')) return [];
-    try {
-      const event: unknown = JSON.parse(line);
-      return typeof event === 'object' && event !== null ? [event as OpencodeEvent] : [];
-    } catch {
-      return [];
-    }
+    return Try.run((): unknown => JSON.parse(line)).match<OpencodeEvent[]>(
+      (event) => (typeof event === 'object' && event !== null ? [event as OpencodeEvent] : []),
+      () => [],
+    );
   });
 }
 
 /** The message of the first error event, if any. */
-function errorMessage(stream: OpencodeEvent[]): string | undefined {
-  const error = stream.find((event) => event.type === 'error')?.error;
-  if (error === undefined) return undefined;
-  return String(error.data?.message ?? error.name ?? 'unknown error');
+function errorMessage(stream: OpencodeEvent[]): Option<string> {
+  return Option.from(stream.find((event) => event.type === 'error')?.error).map((error) =>
+    String(error.data?.message ?? error.name ?? 'unknown error'),
+  );
 }
 
 export const opencodeCli: Adapter = createOpencodeCli();
