@@ -1,6 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { statSync } from 'node:fs';
 import path from 'node:path';
+import { Option, Try } from '@ngwes/mini-fp';
 
 export interface ProcessOptions {
   bin: string;
@@ -54,10 +55,65 @@ export function runProcess(opts: ProcessOptions): Promise<ProcessResult> {
       reject(startError(opts.bin, new Error('skill-be is stopping')));
       return;
     }
-    let child: ChildProcess;
-    try {
+    /** Collects the output of a started child and settles once it closes or times out. */
+    const supervise = (child: ChildProcess): void => {
+      activeChildren.add(child);
+
+      const stdout: Buffer[] = [];
+      const stderr: Buffer[] = [];
+      let timedOut = false;
+      let settled = false;
+      let graceTimer: NodeJS.Timeout | undefined;
+
+      const finish = (code: number | null): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clearTimeout(graceTimer);
+        resolve({
+          stdout: Buffer.concat(stdout).toString('utf8'),
+          stderr: Buffer.concat(stderr).toString('utf8'),
+          code: timedOut ? null : code,
+          timedOut,
+        });
+      };
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        killTree(child);
+        // A process that escaped the kill may still hold the pipes open; do not wait for it
+        // forever.
+        graceTimer = setTimeout(() => {
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          finish(null);
+        }, KILL_GRACE_MS);
+      }, opts.timeoutMs);
+
+      child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk));
+      child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk));
+      child.on('close', (code) => {
+        activeChildren.delete(child);
+        finish(code);
+      });
+      child.on('error', (error) => {
+        activeChildren.delete(child);
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clearTimeout(graceTimer);
+        reject(startError(opts.bin, error));
+      });
+
+      // A child that exits without reading its stdin breaks the pipe; its exit code tells the
+      // story.
+      child.stdin?.on('error', () => {});
+      child.stdin?.end(opts.stdin, 'utf8');
+    };
+
+    Try.run(() => {
       const command = commandFor(opts);
-      child = spawn(command.file, command.args, {
+      return spawn(command.file, command.args, {
         cwd: opts.cwd,
         env: opts.env,
         stdio: 'pipe',
@@ -66,60 +122,7 @@ export function runProcess(opts: ProcessOptions): Promise<ProcessResult> {
         // On POSIX the child leads its own process group, so a timeout can kill the whole tree.
         detached: !isWindows,
       });
-    } catch (error) {
-      reject(startError(opts.bin, error));
-      return;
-    }
-    activeChildren.add(child);
-
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    let timedOut = false;
-    let settled = false;
-    let graceTimer: NodeJS.Timeout | undefined;
-
-    const finish = (code: number | null): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      clearTimeout(graceTimer);
-      resolve({
-        stdout: Buffer.concat(stdout).toString('utf8'),
-        stderr: Buffer.concat(stderr).toString('utf8'),
-        code: timedOut ? null : code,
-        timedOut,
-      });
-    };
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killTree(child);
-      // A process that escaped the kill may still hold the pipes open; do not wait for it forever.
-      graceTimer = setTimeout(() => {
-        child.stdout?.destroy();
-        child.stderr?.destroy();
-        finish(null);
-      }, KILL_GRACE_MS);
-    }, opts.timeoutMs);
-
-    child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk));
-    child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk));
-    child.on('close', (code) => {
-      activeChildren.delete(child);
-      finish(code);
-    });
-    child.on('error', (error) => {
-      activeChildren.delete(child);
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      clearTimeout(graceTimer);
-      reject(startError(opts.bin, error));
-    });
-
-    // A child that exits without reading its stdin breaks the pipe; its exit code tells the story.
-    child.stdin?.on('error', () => {});
-    child.stdin?.end(opts.stdin, 'utf8');
+    }).match(supervise, (error) => reject(startError(opts.bin, error)));
   });
 }
 
@@ -142,11 +145,7 @@ function killTree(child: ChildProcess, wait = false): void {
     spawn(taskkill, args, { stdio: 'ignore', windowsHide: true }).on('error', () => child.kill());
     return;
   }
-  try {
-    process.kill(-pid, 'SIGKILL');
-  } catch {
-    child.kill('SIGKILL');
-  }
+  Try.run((): boolean => process.kill(-pid, 'SIGKILL')).onFail(() => child.kill('SIGKILL'));
 }
 
 interface Command {
@@ -166,19 +165,21 @@ function commandFor(opts: ProcessOptions): Command {
  */
 function windowsCommand(opts: ProcessOptions): Command {
   const resolved = resolveOnWindows(opts.bin, opts.cwd ?? process.cwd(), opts.env ?? process.env);
-  if (resolved === undefined || !/\.(cmd|bat)$/i.test(resolved)) {
-    return { file: resolved ?? opts.bin, args: opts.args, verbatim: false };
-  }
-  return {
-    file: process.env.ComSpec ?? 'cmd.exe',
-    args: ['/d', '/s', '/c', `"${cmdLine(resolved, opts.args)}"`],
-    verbatim: true,
-  };
+  return resolved
+    .filter((file) => /\.(cmd|bat)$/i.test(file))
+    .match<Command>(
+      (shim) => ({
+        file: process.env.ComSpec ?? 'cmd.exe',
+        args: ['/d', '/s', '/c', `"${cmdLine(shim, opts.args)}"`],
+        verbatim: true,
+      }),
+      () => ({ file: resolved.orElse(opts.bin), args: opts.args, verbatim: false }),
+    );
 }
 
 const WINDOWS_EXTENSIONS = ['.com', '.exe', '.bat', '.cmd'];
 
-function resolveOnWindows(bin: string, cwd: string, env: NodeJS.ProcessEnv): string | undefined {
+function resolveOnWindows(bin: string, cwd: string, env: NodeJS.ProcessEnv): Option<string> {
   const names = WINDOWS_EXTENSIONS.includes(path.extname(bin).toLowerCase())
     ? [bin]
     : WINDOWS_EXTENSIONS.map((extension) => bin + extension);
@@ -187,15 +188,17 @@ function resolveOnWindows(bin: string, cwd: string, env: NodeJS.ProcessEnv): str
   for (const directory of directories) {
     for (const name of names) {
       const candidate = path.resolve(directory, name);
-      if (statSync(candidate, { throwIfNoEntry: false })?.isFile()) return candidate;
+      if (statSync(candidate, { throwIfNoEntry: false })?.isFile()) return Option.some(candidate);
     }
   }
-  return undefined;
+  return Option.none();
 }
 
 function pathDirectories(env: NodeJS.ProcessEnv): string[] {
   const key = Object.keys(env).find((name) => name.toUpperCase() === 'PATH');
-  const value = key === undefined ? '' : (env[key] ?? '');
+  const value = Option.from(key)
+    .bind((name) => Option.from(env[name]))
+    .orElse('');
   return value
     .split(';')
     .map((directory) => directory.trim().replace(/^"(.*)"$/, '$1'))
