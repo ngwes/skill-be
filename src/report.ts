@@ -7,6 +7,7 @@
  * The summary is what triage reads.
  */
 
+import { Option } from '@ngwes/mini-fp';
 import { fmtDelta, type GateBlock, type GateVerdict } from './gate.js';
 import type { CriterionScore, SkillRun } from './runner.js';
 import type { AdapterSettings } from './types.js';
@@ -68,10 +69,9 @@ export function renderReport(
       out.push('| Criterion | Baseline | With skill | Delta |');
       out.push('|-----------|----------|------------|-------|');
       scenario.criteria.forEach((criterion, c) => {
-        const { baselinePct, withSkillPct }: CriterionScore = model.criteria[c] ?? {
-          baselinePct: 0,
-          withSkillPct: 0,
-        };
+        const { baselinePct, withSkillPct } = Option.from<CriterionScore>(
+          model.criteria[c],
+        ).orElse({ baselinePct: 0, withSkillPct: 0 });
         out.push(
           `| ${cell(criterion)} | ${baselinePct}% | ${withSkillPct}% | ` +
             `${fmtDelta(withSkillPct - baselinePct)} |`,
@@ -149,8 +149,9 @@ export function toSummary(
 ): RunSummary {
   return {
     skills: runs.map((run) => {
-      const gate = gates.get(run.skill);
-      if (!gate) throw new Error(`No gate verdict for skill "${run.skill}"`);
+      const gate = Option.from(gates.get(run.skill)).orElse(() => {
+        throw new Error(`No gate verdict for skill "${run.skill}"`);
+      });
       return {
         skill: run.skill,
         startedAt: run.startedAt,
