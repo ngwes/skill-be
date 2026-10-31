@@ -6,18 +6,14 @@
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Either, Option, Try, TryAsync, foldAsync } from '@ngwes/mini-fp';
 import { isConfigProblem, resolveAdapter, type Adapter } from './adapters/index.js';
+import { valueOrThrow } from './checked.js';
 import { gradeOutput, graderReasons, parseVerdicts } from './grader.js';
 import { createLimiter } from './limiter.js';
 import { cell, type RunSummary, type SkillSummary } from './report.js';
 import { fillTemplate, modelLabels, resultsTimestamp, type CriterionScore } from './runner.js';
-import {
-  ConfigError,
-  type AdapterSettings,
-  type Config,
-  type Scenario,
-  type SkillSuite,
-} from './types.js';
+import type { AdapterSettings, Config, Scenario, SkillSuite } from './types.js';
 
 export const TRIAGE_CATEGORIES = [
   'skill gap',
@@ -125,7 +121,8 @@ export async function triage(
     deps.adapterFor ??
     ((settings: AdapterSettings) => resolveAdapter(settings.adapter, config.root));
   const sampleCount = opts.samples ?? 2;
-  const classifierOf = (target: Target): AdapterSettings => config.triage.model ?? target.settings;
+  const classifierOf = (target: Target): AdapterSettings =>
+    Option.from(config.triage.model).orElse(target.settings);
 
   const run = await latestRun(config.results);
   const { targets, notes } = selectTargets(run.summary, suites, config.models, opts.below);
@@ -150,30 +147,31 @@ export async function triage(
     );
   const grade = (prompt: string): Promise<string> => call(config.grader, prompt);
 
-  async function sample(target: Target, prompt: string): Promise<Sample> {
-    let output: string;
-    try {
-      output = await call(target.settings, prompt);
-    } catch (error) {
-      if (isConfigProblem(error)) throw error;
-      return { error: messageOf(error) };
-    }
-    const { criteria } = target.scenario;
-    const graded = await gradeOutput(
-      criteria,
-      output,
-      grade,
-      config.gradings,
-      config.graderPrompt ?? undefined,
+  function sample(target: Target, prompt: string): Promise<Sample> {
+    return TryAsync.runAsync(() => call(target.settings, prompt)).match<Sample>(
+      async (output) => {
+        const { criteria } = target.scenario;
+        const graded = await gradeOutput(
+          criteria,
+          output,
+          grade,
+          config.gradings,
+          config.graderPrompt ?? undefined,
+        );
+        return {
+          output,
+          verdict: graded.verdicts?.[target.criterion] ?? null,
+          gradings: graded.rawAnswers.map((answer) => ({
+            verdict: parseVerdicts(answer, criteria.length)?.[target.criterion] ?? null,
+            reasons: graderReasons(answer),
+          })),
+        };
+      },
+      (error) => {
+        if (isConfigProblem(error)) throw error;
+        return { error: messageOf(error) };
+      },
     );
-    return {
-      output,
-      verdict: graded.verdicts?.[target.criterion] ?? null,
-      gradings: graded.rawAnswers.map((answer) => ({
-        verdict: parseVerdicts(answer, criteria.length)?.[target.criterion] ?? null,
-        reasons: graderReasons(answer),
-      })),
-    };
   }
 
   async function classify(target: Target, samples: Sample[]): Promise<TriageItem> {
@@ -191,26 +189,28 @@ export async function triage(
         reason: `no sample could be generated: ${errors[0]}`,
       };
     }
-    let answer: string;
-    try {
-      answer = await call(classifierOf(target), classificationPrompt(target, samples));
-    } catch (error) {
-      if (isConfigProblem(error)) throw error;
-      return {
-        ...item,
-        proposed: 'unclassified',
-        reason: `the classification call failed: ${messageOf(error)}`,
-      };
-    }
-    const parsed = parseClassification(answer);
-    return parsed
-      ? { ...item, ...parsed }
-      : {
+    return TryAsync.runAsync(() =>
+      call(classifierOf(target), classificationPrompt(target, samples)),
+    ).match<TriageItem>(
+      (answer) =>
+        Option.from(parseClassification(answer)).match<TriageItem>(
+          (parsed) => ({ ...item, ...parsed }),
+          () => ({
+            ...item,
+            proposed: 'unclassified',
+            reason: 'the classification could not be parsed',
+            rawAnswer: answer,
+          }),
+        ),
+      (error) => {
+        if (isConfigProblem(error)) throw error;
+        return {
           ...item,
           proposed: 'unclassified',
-          reason: 'the classification could not be parsed',
-          rawAnswer: answer,
+          reason: `the classification call failed: ${messageOf(error)}`,
         };
+      },
+    );
   }
 
   const triaged: Triaged[] = await Promise.all(
@@ -253,70 +253,97 @@ export function parseClassification(
   answer: string,
 ): { proposed: TriageCategory; reason: string } | null {
   const lines = answer.split(/\r?\n/);
-  const at = lastIndex(lines, (line) => labelled('classification', line) !== null);
-  if (at === -1) return null;
-
-  const value = (labelled('classification', lines[at] as string) as string)
-    .replace(/[*_`"'“”]/g, '')
-    .replace(/[\s-]+/g, ' ')
-    .trim()
-    .toLowerCase();
-  const proposed = TRIAGE_CATEGORIES.find(
-    (category) => value === category || new RegExp(`^${category}(?![a-z])`).test(value),
-  );
-
-  const after = lines.slice(at + 1);
-  const reasonAt = lastIndex(after, (line) => labelled('reason', line) !== null);
-  const reason = reasonAt === -1 ? '' : (labelled('reason', after[reasonAt] as string) as string);
-  const trimmed = reason.replace(/^[\s*_]+|[\s*_]+$/g, '');
-  return proposed && trimmed ? { proposed, reason: trimmed } : null;
+  return lastLabelled(lines, 'classification')
+    .bind(({ at, value }) => {
+      const category = value
+        .replace(/[*_`"'“”]/g, '')
+        .replace(/[\s-]+/g, ' ')
+        .trim()
+        .toLowerCase();
+      const reason = lastLabelled(lines.slice(at + 1), 'reason')
+        .match(
+          (found) => found.value,
+          () => '',
+        )
+        .replace(/^[\s*_]+|[\s*_]+$/g, '');
+      return Option.from(
+        TRIAGE_CATEGORIES.find(
+          (known) => category === known || new RegExp(`^${known}(?![a-z])`).test(category),
+        ),
+      )
+        .filter(() => reason !== '')
+        .map((proposed) => ({ proposed, reason }));
+    })
+    .match<{ proposed: TriageCategory; reason: string } | null>(
+      (parsed) => parsed,
+      () => null,
+    );
 }
 
-/** The value after `<label>:` on a line, with markdown allowed around the label; else `null`. */
-function labelled(label: string, line: string): string | null {
-  const match = new RegExp(`^[\\s#*>_-]*${label}[\\s*_]*:[\\s*_]*(.*)$`, 'i').exec(line);
-  return match ? (match[1] as string) : null;
+/** The value after `<label>:` on a line, with markdown allowed around the label. */
+function labelled(label: string, line: string): Option<string> {
+  return Option.from(
+    new RegExp(`^[\\s#*>_-]*${label}[\\s*_]*:[\\s*_]*(.*)$`, 'i').exec(line),
+  ).map((match) => match[1] as string);
 }
 
-function lastIndex<T>(items: readonly T[], test: (item: T) => boolean): number {
-  for (let i = items.length - 1; i >= 0; i--) if (test(items[i] as T)) return i;
-  return -1;
+/** The last line with a `<label>:` value: its index and the value. */
+function lastLabelled(lines: readonly string[], label: string): Option<{ at: number; value: string }> {
+  for (let at = lines.length - 1; at >= 0; at--) {
+    const value = labelled(label, lines[at] as string);
+    if (value.isSome()) return value.map((found) => ({ at, value: found }));
+  }
+  return Option.none();
 }
+
+type Run = { name: string; dir: string; summary: RunSummary };
 
 /** The newest results directory with a `summary.json`, and that summary. */
-async function latestRun(
-  results: string,
-): Promise<{ name: string; dir: string; summary: RunSummary }> {
-  let names: string[] = [];
-  try {
-    names = await readdir(results);
-  } catch (error) {
+async function latestRun(results: string): Promise<Run> {
+  const names = await TryAsync.runAsync(() => readdir(results)).onFail((error) => {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
-  for (const name of names.filter((n) => RUN_DIR.test(n)).sort().reverse()) {
-    const dir = path.join(results, name);
-    const file = path.join(dir, 'summary.json');
-    let text: string;
-    try {
-      text = await readFile(file, 'utf8');
-    } catch (error) {
+    return [];
+  });
+  const newestFirst = names
+    .filter((n) => RUN_DIR.test(n))
+    .sort()
+    .reverse();
+  const latest = await foldAsync(newestFirst, Option.none<Run>(), (found, name) =>
+    found.isSome() ? found : readRun(results, name),
+  );
+  return valueOrThrow(
+    latest.toEither(
+      () => `no run with a summary.json in ${results}: run \`skill-be run\` before triage`,
+    ),
+  );
+}
+
+/** The run in `<results>/<name>`; none when it has no `summary.json`. */
+async function readRun(results: string, name: string): Promise<Option<Run>> {
+  const dir = path.join(results, name);
+  const file = path.join(dir, 'summary.json');
+  const text = await TryAsync.runAsync(() => readFile(file, 'utf8')).match(
+    (content) => Option.some(content),
+    (error) => {
       const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'ENOENT' || code === 'ENOTDIR') continue;
+      if (code === 'ENOENT' || code === 'ENOTDIR') return Option.none<string>();
       throw error;
-    }
-    let data: unknown;
-    try {
-      data = JSON.parse(text);
-    } catch (error) {
-      throw new ConfigError(`${file}: invalid JSON (${(error as Error).message})`);
-    }
-    if (typeof data !== 'object' || data === null || !Array.isArray((data as RunSummary).skills)) {
-      throw new ConfigError(`${file}: not a skill-be summary (no "skills" list)`);
-    }
-    return { name, dir, summary: data as RunSummary };
-  }
-  throw new ConfigError(
-    `no run with a summary.json in ${results}: run \`skill-be run\` before triage`,
+    },
+  );
+  return text.map((content) => ({
+    name,
+    dir,
+    summary: valueOrThrow(parseSummary(content).mapLeft((message) => `${file}: ${message}`)),
+  }));
+}
+
+function parseSummary(text: string): Either<string, RunSummary> {
+  return Try.run((): unknown => JSON.parse(text)).match(
+    (data) =>
+      typeof data === 'object' && data !== null && Array.isArray((data as RunSummary).skills)
+        ? Either.right<string, RunSummary>(data as RunSummary)
+        : Either.left<string, RunSummary>('not a skill-be summary (no "skills" list)'),
+    (error) => Either.left<string, RunSummary>(`invalid JSON (${(error as Error).message})`),
   );
 }
 
@@ -355,29 +382,37 @@ function selectTargets(
           const why = causes.get(key(summaryScenario.id, c, model.model));
           if (!why) continue;
           const where = `\`${suite.name}\` / \`${summaryScenario.id}\` / ${model.model}`;
-          const scenario = suite.scenarios.find((s) => s.id === summaryScenario.id);
-          const criterion = scenario?.criteria.indexOf(criterionText) ?? -1;
-          const m = labels.indexOf(model.model);
-          if (!scenario) {
-            notes.push(`${where}: the eval file no longer has this scenario; not triaged.`);
-          } else if (criterion === -1) {
-            notes.push(
-              `${where}: the eval file no longer has the criterion "${criterionText}"; ` +
-                'not triaged.',
+          const found = (index: number): Option<number> => Option.from(index, (i) => i === -1);
+          Option.from(suite.scenarios.find((s) => s.id === summaryScenario.id))
+            .toEither(() => `${where}: the eval file no longer has this scenario; not triaged.`)
+            .bind((scenario) =>
+              found(scenario.criteria.indexOf(criterionText))
+                .map((criterion) => ({ scenario, criterion }))
+                .toEither(
+                  () =>
+                    `${where}: the eval file no longer has the criterion "${criterionText}"; ` +
+                    'not triaged.',
+                ),
+            )
+            .bind(({ scenario, criterion }) =>
+              found(labels.indexOf(model.model))
+                .map(
+                  (m): Target => ({
+                    suite,
+                    scenario,
+                    criterion,
+                    label: model.model,
+                    settings: models[m] as AdapterSettings,
+                    causes: why,
+                    score: model.criteria[c] ?? { baselinePct: 0, withSkillPct: 0 },
+                  }),
+                )
+                .toEither(() => `${where}: the config no longer has this model; not triaged.`),
+            )
+            .match(
+              (target) => void targets.push(target),
+              (note) => void notes.push(note),
             );
-          } else if (m === -1) {
-            notes.push(`${where}: the config no longer has this model; not triaged.`);
-          } else {
-            targets.push({
-              suite,
-              scenario,
-              criterion,
-              label: model.model,
-              settings: models[m] as AdapterSettings,
-              causes: why,
-              score: model.criteria[c] ?? { baselinePct: 0, withSkillPct: 0 },
-            });
-          }
         }
       });
     }
@@ -505,9 +540,10 @@ function renderTriage(
   out.push(
     `Method: ${info.samples} fresh with-skill sample(s) per failure, each graded ` +
       `${info.gradings} time(s) by ${info.grader.id} (via ${info.grader.adapter}); ` +
-      (info.classifier
-        ? `classified by ${info.classifier.id} (via ${info.classifier.adapter}).`
-        : 'classified by the model under test whose output failed.'),
+      Option.from(info.classifier).match(
+        (classifier) => `classified by ${classifier.id} (via ${classifier.adapter}).`,
+        () => 'classified by the model under test whose output failed.',
+      ),
   );
   out.push('');
 
@@ -547,12 +583,12 @@ function renderTriage(
     out.push('');
     if (item.proposed === 'unclassified') {
       out.push(`**Unclassified** — ${item.reason}`);
-      if (item.rawAnswer !== undefined) {
+      Option.from(item.rawAnswer).onSome((rawAnswer) => {
         out.push('');
         out.push('Raw answer of the triage model:');
         out.push('');
-        out.push(fenced(item.rawAnswer));
-      }
+        out.push(fenced(rawAnswer));
+      });
     } else {
       out.push(`**Proposed: ${item.proposed}** — ${item.reason}`);
     }
