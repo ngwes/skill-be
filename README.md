@@ -1111,3 +1111,21 @@ Good scenarios and criteria are most of the value:
 - **One check per criterion.** Each criterion is judged on its own, as if it were the only one. Split "uses A and B" into two.
 
 When a criterion fails with the skill, read the grader's answers (`*.grading-<n>.md` next to the output) before changing the skill, or run `skill-be triage`. One model with one rep is noise: keep several reps, and look at the delta between the arms, not only the score with the skill.
+
+<!-- docs-site:skip-start -->
+## Releasing
+
+For maintainers. semantic-release runs on every push to `main`: it reads the conventional commits, sets the version in `package.json`, updates `CHANGELOG.md` and tags the release. It does not publish to npm.
+
+Publishing is the manual "Publish to npm" workflow (`.github/workflows/publish.yml`), run from `main` in the Actions tab. It uses npm trusted publishing (OIDC), so it needs no npm token.
+
+npm trusted publishing can only be configured for a package that already exists, so the very first version is published by hand, from `main` after semantic-release has set its version:
+
+```sh
+npm login
+npm run build
+npm publish --access public
+```
+
+Then, on npmjs.com, open the package settings and add a trusted publisher: GitHub Actions, repository `ngwes/skill-be`, workflow `publish.yml`. Every later version goes through the workflow.
+<!-- docs-site:skip-end -->
