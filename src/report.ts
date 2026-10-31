@@ -23,7 +23,7 @@ export type ReportMethod = {
 };
 
 const NOTE_LINE =
-  'Note: "with skill" injects SKILL.md content as library context in the user prompt.';
+  'Note: "with skill" puts the SKILL.md content in the user prompt.';
 
 const READY_LINE = '**READY** — No universal 0% criteria. No critical regressions.';
 

@@ -386,7 +386,7 @@ The report goes to stdout, and to `money.md` in the run's directory. Each table 
 ## 2026-10-31 — money benchmark
 
 Method: automated eval. Models: claude-cli:claude-sonnet-5-5. Reps: 2. Grading: majority of 1 claude-haiku-5-5 calls per output (via claude-cli).
-Note: "with skill" injects SKILL.md content as library context in the user prompt.
+Note: "with skill" puts the SKILL.md content in the user prompt.
 
 ### Scenario: split-the-bill *(critical)*
 
@@ -1070,8 +1070,8 @@ Each failure gets one proposed classification for a human to confirm:
 | Category | Meaning |
 |---|---|
 | skill gap | The skill does not teach it clearly enough |
-| eval too strict | The code is correct and idiomatic, but the criterion demands one form, or something the prompt did not ask for |
-| grader error | The code satisfies the criterion and the grader still says NO |
+| eval too strict | The answer is correct and idiomatic, but the criterion demands one form, or something the prompt did not ask for |
+| grader error | The answer satisfies the criterion and the grader still says NO |
 | model choice | The skill is clear and the model picks another reasonable approach |
 
 A failure whose samples could not be generated, or whose classification could not be read, is `unclassified`. The code, the grader's reasons and the proposals are saved side by side in `triage-<timestamp>.md` inside that run's directory, and the terminal lists the proposals:

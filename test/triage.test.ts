@@ -404,7 +404,7 @@ describe('triage samples and grading', () => {
     const expected = (n: number): string =>
       buildGraderPrompt(['c1', 'c2'], `code sample ${n}`, 'Custom rules.');
     expect(calls.grader.sort()).toEqual([1, 1, 1, 2, 2, 2].map(expected));
-    expect(calls.grader[0]).toContain('one short reason citing the code');
+    expect(calls.grader[0]).toContain('one short reason citing the part of the answer');
     expect(contexts.every((ctx) => ctx.timeoutMs === 120_000 && ctx.cwd === root)).toBe(true);
   });
 
@@ -510,9 +510,9 @@ describe('triage classification', () => {
     const prompt = calls.triager[0] as string;
     for (const definition of [
       "skill gap: the skill doesn't teach it clearly enough",
-      'eval too strict: the code is correct and idiomatic, but the criterion demands one form or ' +
+      'eval too strict: the answer is correct and idiomatic, but the criterion demands one form or ' +
         "something the prompt didn't ask for",
-      'grader error: the code satisfies the criterion and the grader still says NO',
+      'grader error: the answer satisfies the criterion and the grader still says NO',
       'model choice: the skill is clear and the model picks another reasonable approach',
     ]) {
       expect(prompt).toContain(definition);

@@ -24,7 +24,7 @@ const SPEC_INSTRUCTIONS = [
 ].join('\n');
 
 const contract = (lines: string): string =>
-  'First, for each criterion in order, write one short reason citing the code that decides it. ' +
+  'First, for each criterion in order, write one short reason citing the part of the answer that decides it. ' +
   `Then end your reply with a line "VERDICTS:" followed by exactly ${lines}, ` +
   'one per criterion in order, each in the form "<number>: YES" or "<number>: NO", ' +
   'and nothing after them.';
