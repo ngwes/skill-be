@@ -58,7 +58,7 @@ export function buildGraderPrompt(
     `${custom ? custom : DEFAULT_GRADER_INSTRUCTIONS}\n\n` +
     `Criteria:\n${criteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}\n\n` +
     `<answer>\n${answer}\n</answer>\n\n` +
-    `First, for each criterion in order, write one short reason citing the code that decides it. ` +
+    `First, for each criterion in order, write one short reason citing the part of the answer that decides it. ` +
     `Then end your reply with a line "VERDICTS:" followed by exactly ${n} line${n === 1 ? '' : 's'}, ` +
     `one per criterion in order, each in the form "<number>: YES" or "<number>: NO", and nothing after them.`
   );

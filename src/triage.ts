@@ -32,9 +32,9 @@ export type TriageCategory = (typeof TRIAGE_CATEGORIES)[number];
 const DEFINITIONS: Record<TriageCategory, string> = {
   'skill gap': "the skill doesn't teach it clearly enough",
   'eval too strict':
-    'the code is correct and idiomatic, but the criterion demands one form or something the ' +
+    'the answer is correct and idiomatic, but the criterion demands one form or something the ' +
     "prompt didn't ask for",
-  'grader error': 'the code satisfies the criterion and the grader still says NO',
+  'grader error': 'the answer satisfies the criterion and the grader still says NO',
   'model choice': 'the skill is clear and the model picks another reasonable approach',
 };
 
@@ -433,8 +433,8 @@ function classificationPrompt(target: Target, samples: readonly Sample[]): strin
   const n = criterion + 1;
   const parts: string[] = [
     'You are triaging a failure in a benchmark of an Agent Skill. The skill is documentation ' +
-      'given to a model in its prompt; the model then writes code for a task, and a grader ' +
-      'model judges the code against numbered criteria. One criterion keeps failing with the ' +
+      'given to a model in its prompt; the model then answers a task, and a grader model ' +
+      'judges the answer against numbered criteria. One criterion keeps failing with the ' +
       'skill. Below are the skill, the task, the criteria, and fresh answers written with the ' +
       "skill, each with the grader's verdict on that criterion and the grader's reasons.",
     '',
@@ -471,10 +471,10 @@ function classificationPrompt(target: Target, samples: readonly Sample[]): strin
 
   parts.push(
     '',
-    `Check the code against criterion ${n} yourself before trusting the grader. Then end your ` +
+    `Check the answer against criterion ${n} yourself before trusting the grader. Then end your ` +
       'reply with exactly these two lines and nothing after them:',
     `CLASSIFICATION: <one of: ${TRIAGE_CATEGORIES.join(', ')}>`,
-    'REASON: <one line saying why, citing the code>',
+    'REASON: <one line saying why, citing the answer>',
   );
   return parts.join('\n');
 }

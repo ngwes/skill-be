@@ -110,7 +110,7 @@ describe('renderReport', () => {
         '',
         'Method: automated eval. Models: claude-cli:claude-sonnet-5-5, pi-cli:gpt-x. Reps: 3. ' +
           'Grading: majority of 3 claude-haiku-5-5 calls per output (via claude-cli).',
-        'Note: "with skill" injects SKILL.md content as library context in the user prompt.',
+        'Note: "with skill" puts the SKILL.md content in the user prompt.',
         '',
         '### Scenario: accumulate-field-errors *(critical)*',
         '',
