@@ -3,8 +3,8 @@
 // The README stays the single source of truth (and keeps rendering on GitHub and npm).
 // This script splits it into pages: the introduction and the first sections make the home page,
 // every other `##` section is a page of the "guide" folder. It adds the front matter, keeps the
-// links between sections working by pointing them at the page that holds the heading, and turns
-// the temporary "not on npm" notes into Starlight asides. Its output is generated and git-ignored.
+// links between sections working by pointing them at the page that holds the heading. Its output is
+// generated and git-ignored.
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,27 +38,9 @@ const headingText = (raw) =>
 // Absolute links, with the `base`: the links validator only checks those (relative ones are skipped)
 const pageLink = (slug) => `${base}/${slug === '' ? '' : `${slug}/`}`;
 
-// The README marks a temporary note (to delete once skill-be is on npm) with HTML comments around a
-// `> **Note:**` quote. On the site it becomes a Starlight aside.
-const NOTE = /<!-- BEGIN not-on-npm note[^\n]*?-->\n([\s\S]*?)\n<!-- END not-on-npm note -->/g;
-const toAside = (_match, quote) => {
-	const text = quote
-		.split('\n')
-		.map((line) => line.replace(/^>\s?/, ''))
-		.join('\n')
-		.replace(/^\*\*Note:\*\*\s*/, '')
-		// "until ..." -> "Until ...", but a hyphenated name such as skill-be stays as it is
-		.replace(/^[a-z]+\b(?!-)/, (word) => word[0].toUpperCase() + word.slice(1));
-	return `:::note[Not on npm yet]\n${text}\n:::`;
-};
-
 const source = readFileSync(readmePath, 'utf8')
 	.replace(/\r\n/g, '\n')
-	.replace(new RegExp(`${SKIP_START}[\\s\\S]*?${SKIP_END}\\n?`, 'g'), '')
-	.replace(NOTE, toAside);
-if (source.includes('not-on-npm note')) {
-	throw new Error('README.md: a "not-on-npm note" marker has no matching BEGIN or END marker');
-}
+	.replace(new RegExp(`${SKIP_START}[\\s\\S]*?${SKIP_END}\\n?`, 'g'), '');
 
 // 1. Classify the lines, ignoring anything inside a code fence. A fence closes only with the same
 //    character, at least as many times, so a ```` block can show a ``` block. `anchor` is the id
