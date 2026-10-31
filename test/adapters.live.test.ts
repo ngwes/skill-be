@@ -1,17 +1,17 @@
-// Real model calls through each CLI and its stored login. Run with SKILLBE_LIVE=1.
-// SKILLBE_LIVE_OPENCODE_MODEL picks the opencode model as provider/model.
+// Real model calls through each CLI and its stored login. Run with SKILL_BE_LIVE=1.
+// SKILL_BE_LIVE_OPENCODE_MODEL picks the opencode model as provider/model.
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { resolveAdapter } from '../src/adapters/index.js';
 import type { AdapterSettings } from '../src/types.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const LIVE = process.env.SKILLBE_LIVE === '1';
+const LIVE = process.env.SKILL_BE_LIVE === '1';
 const TIMEOUT_MS = 120_000;
 const PROMPT = 'Reply with exactly: ok';
 
 const [opencodeProvider, ...opencodeModel] = (
-  process.env.SKILLBE_LIVE_OPENCODE_MODEL ?? 'anthropic/claude-haiku-5-5'
+  process.env.SKILL_BE_LIVE_OPENCODE_MODEL ?? 'anthropic/claude-haiku-5-5'
 ).split('/');
 
 const cases: AdapterSettings[] = [

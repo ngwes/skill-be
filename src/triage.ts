@@ -311,12 +311,12 @@ async function latestRun(
       throw new ConfigError(`${file}: invalid JSON (${(error as Error).message})`);
     }
     if (typeof data !== 'object' || data === null || !Array.isArray((data as RunSummary).skills)) {
-      throw new ConfigError(`${file}: not a skillBe summary (no "skills" list)`);
+      throw new ConfigError(`${file}: not a skill-be summary (no "skills" list)`);
     }
     return { name, dir, summary: data as RunSummary };
   }
   throw new ConfigError(
-    `no run with a summary.json in ${results}: run \`skillbe run\` before triage`,
+    `no run with a summary.json in ${results}: run \`skill-be run\` before triage`,
   );
 }
 

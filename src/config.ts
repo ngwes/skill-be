@@ -44,7 +44,7 @@ export type ConfigDeps = {
 };
 
 /**
- * True when `typescript` resolves from the project, or else from skillBe's own install: the same
+ * True when `typescript` resolves from the project, or else from skill-be's own install: the same
  * lookup the presets load it by.
  */
 export function typescriptInstalled(root: string): boolean {
@@ -52,7 +52,7 @@ export function typescriptInstalled(root: string): boolean {
 }
 
 /**
- * Reads `skillbe.yaml`, fills the defaults and validates it. Paths in the file resolve against the
+ * Reads `skill-be.yaml`, fills the defaults and validates it. Paths in the file resolve against the
  * config file's directory. Throws a `ConfigError` naming the file and the offending key.
  */
 export async function loadConfig(configPath: string, deps: ConfigDeps = {}): Promise<Config> {
@@ -110,9 +110,9 @@ function buildConfig(
     gradings: positiveInteger(raw.gradings, 'gradings', 3),
     concurrency: positiveInteger(raw.concurrency, 'concurrency', 4),
     timeoutSeconds: parseTimeout(raw.timeoutSeconds),
-    results: optionalPath(raw.results, 'results', root) ?? path.join(root, '.skillbe', 'results'),
+    results: optionalPath(raw.results, 'results', root) ?? path.join(root, '.skill-be', 'results'),
     resultFile:
-      optionalPath(raw.resultFile, 'resultFile', root) ?? path.join(root, 'skillbe.result.json'),
+      optionalPath(raw.resultFile, 'resultFile', root) ?? path.join(root, 'skill-be.result.json'),
     withSkillTemplate: parseTemplate(raw.withSkillTemplate),
     graderPrompt: optionalString(raw.graderPrompt, 'graderPrompt') ?? null,
     gate: parseGate(raw.gate),

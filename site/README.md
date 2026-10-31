@@ -1,6 +1,6 @@
-# skillBe documentation site
+# skill-be documentation site
 
-A [Starlight](https://starlight.astro.build) site, published to GitHub Pages at <https://ngwes.github.io/skillBe/>.
+A [Starlight](https://starlight.astro.build) site, published to GitHub Pages at <https://ngwes.github.io/skill-be/>.
 
 The content is **not** stored here. The repository `README.md` is the single source of truth (and keeps rendering on
 GitHub and npm). `scripts/sync-content.mjs` turns it into the site's content before every build: the introduction,
@@ -20,7 +20,7 @@ Run from this folder:
 | Command           | What it does                                                         |
 | :---------------- | :------------------------------------------------------------------- |
 | `npm install`     | Install dependencies                                                 |
-| `npm run dev`     | Sync the content, then serve the site at `localhost:4321/skillBe/`   |
+| `npm run dev`     | Sync the content, then serve the site at `localhost:4321/skill-be/`  |
 | `npm run sync`    | Re-sync the content after editing the README during `dev`            |
 | `npm run build`   | Sync the content, build the site into `./dist/` and check its links  |
 | `npm run preview` | Serve the built site locally                                         |

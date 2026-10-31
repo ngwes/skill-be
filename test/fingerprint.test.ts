@@ -9,7 +9,7 @@ import { loadSuites } from '../src/suite.js';
 const dirs: string[] = [];
 
 /** A fresh temporary directory, removed after the test. */
-async function tempDir(prefix = 'skillbe-fingerprint-'): Promise<string> {
+async function tempDir(prefix = 'skill-be-fingerprint-'): Promise<string> {
   const created = await mkdtemp(path.join(os.tmpdir(), prefix));
   dirs.push(created);
   return created;
@@ -115,10 +115,10 @@ describe('fingerprint', () => {
     // path relative to the root and written with forward slashes, whatever the platform. The
     // value was computed outside this module.
     const a = await put(dir, 'skills/x/SKILL.md', '# X\r\nbody\r\n');
-    const b = await put(dir, 'skillbe.yaml', 'skills: ./skills\n');
+    const b = await put(dir, 'skill-be.yaml', 'skills: ./skills\n');
 
     expect(await fingerprint([a, b], dir)).toBe(
-      '2357e5b20410d0831bfa8a9116d8e5b1da50a43988388f18e1920f1b98909e2d',
+      '26b31654828e7fb624ab52720e46ecada95bfebe5c5b05b78c0c3539465ee384',
     );
   });
 
@@ -156,7 +156,7 @@ async function project(
 ) {
   await put(root, 'skills/a/SKILL.md', files.skill ?? SKILL_MD);
   await put(root, 'evals/a.json', files.evals ?? EVAL_JSON);
-  const configFile = await put(root, 'skillbe.yaml', files.config ?? CONFIG_YAML);
+  const configFile = await put(root, 'skill-be.yaml', files.config ?? CONFIG_YAML);
   const config = await loadConfig(configFile, { typescriptInstalled: () => false });
   const { suites } = await loadSuites(config);
   return { config, suite: suites[0]! };
@@ -215,7 +215,7 @@ describe('skillFingerprint', () => {
     const { config, suite } = await project(dir);
     const before = await skillFingerprint(config, suite);
 
-    await put(dir, 'skillbe.yaml', CONFIG_YAML.replace('id: fake', 'id: fakf'));
+    await put(dir, 'skill-be.yaml', CONFIG_YAML.replace('id: fake', 'id: fakf'));
 
     expect(await skillFingerprint(config, suite)).not.toBe(before);
   });

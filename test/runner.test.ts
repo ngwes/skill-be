@@ -15,7 +15,7 @@ import {
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(path.join(tmpdir(), 'skillbe-runner-'));
+  root = await mkdtemp(path.join(tmpdir(), 'skill-be-runner-'));
 });
 
 afterEach(async () => {
@@ -28,7 +28,7 @@ const GRADER: AdapterSettings = { adapter: 'fake', id: 'grader' };
 function makeConfig(overrides: Partial<Config> = {}): Config {
   return {
     root,
-    configPath: path.join(root, 'skillbe.yaml'),
+    configPath: path.join(root, 'skill-be.yaml'),
     skills: path.join(root, 'skills'),
     evals: path.join(root, 'evals'),
     models: [MODEL],
@@ -38,7 +38,7 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
     concurrency: 4,
     timeoutSeconds: 120,
     results: path.join(root, 'results'),
-    resultFile: path.join(root, 'skillbe.result.json'),
+    resultFile: path.join(root, 'skill-be.result.json'),
     withSkillTemplate: 'SKILL<{{skill}}>\nTASK<{{task}}>',
     graderPrompt: null,
     gate: { regressionOnCritical: true, blockOnZero: true, blockOnErrors: true },

@@ -4,7 +4,7 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => (code += chunk));
 process.stdin.on('end', () => {
   if (code.includes('BAD')) {
-    process.stderr.write(`rejected (${process.env.SKILLBE_LANG}): ${code.trim()}\n`);
+    process.stderr.write(`rejected (${process.env.SKILL_BE_LANG}): ${code.trim()}\n`);
     process.exit(1);
   }
 });

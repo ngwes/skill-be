@@ -25,7 +25,7 @@ const SLOW = { timeout: 60_000 };
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(path.join(os.tmpdir(), 'skillbe-cli-'));
+  root = await mkdtemp(path.join(os.tmpdir(), 'skill-be-cli-'));
 });
 
 afterEach(async () => {
@@ -87,7 +87,7 @@ async function writeSkill(name: string, text: string, withEval = true): Promise<
 async function makeProject(opts: ProjectOptions = {}, skillText = '# A\n\nUse `double(n)`.\n') {
   await writeSkill('a', skillText);
   await writeSkill('b', '# B\n', false);
-  await writeFile(path.join(root, 'skillbe.yaml'), configText(opts));
+  await writeFile(path.join(root, 'skill-be.yaml'), configText(opts));
 }
 
 async function cli(...argv: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -101,7 +101,7 @@ async function cli(...argv: string[]): Promise<{ code: number; stdout: string; s
   return { code, stdout, stderr };
 }
 
-const resultsDir = (): string => path.join(root, '.skillbe', 'results');
+const resultsDir = (): string => path.join(root, '.skill-be', 'results');
 
 /** The only run directory under the results. */
 async function runDir(): Promise<string> {
@@ -114,9 +114,9 @@ async function readJson<T>(file: string): Promise<T> {
   return JSON.parse(await readFile(file, 'utf8')) as T;
 }
 
-const resultFile = (): Promise<ResultFile> => readJson(path.join(root, 'skillbe.result.json'));
+const resultFile = (): Promise<ResultFile> => readJson(path.join(root, 'skill-be.result.json'));
 
-describe('skillbe run', SLOW, () => {
+describe('skill-be run', SLOW, () => {
   it('exits 0 and writes the report, the summary and the result file', async () => {
     await makeProject();
 
@@ -131,15 +131,15 @@ describe('skillbe run', SLOW, () => {
     expect(report.endsWith('\n\n')).toBe(true);
     expect(stdout).toContain(report);
     expect(stdout).toMatch(/a: READY/);
-    expect(stdout).toContain(path.join('.skillbe', 'results', path.basename(dir), 'a.md'));
-    expect(stdout).toContain(path.join('.skillbe', 'results', path.basename(dir), 'summary.json'));
-    expect(stdout).toContain('skillbe.result.json');
+    expect(stdout).toContain(path.join('.skill-be', 'results', path.basename(dir), 'a.md'));
+    expect(stdout).toContain(path.join('.skill-be', 'results', path.basename(dir), 'summary.json'));
+    expect(stdout).toContain('skill-be.result.json');
     expect(stderr).toContain('skill "b" has no eval file');
 
     const summary = await readJson<RunSummary>(path.join(dir, 'summary.json'));
     expect(summary.skills.map((s) => [s.skill, s.ready])).toEqual([['a', true]]);
 
-    const config = await loadConfig(path.join(root, 'skillbe.yaml'));
+    const config = await loadConfig(path.join(root, 'skill-be.yaml'));
     const [suite] = (await loadSuites(config)).suites;
     const result = await resultFile();
     expect(result.skills).toEqual({
@@ -194,8 +194,8 @@ describe('skillbe run', SLOW, () => {
       grader: 'g',
     };
     await writeFile(
-      path.join(root, 'skillbe.result.json'),
-      JSON.stringify({ skillbeVersion: '0.0.1', skills: { other } }),
+      path.join(root, 'skill-be.result.json'),
+      JSON.stringify({ skillBeVersion: '0.0.1', skills: { other } }),
     );
 
     const { code, stderr } = await cli('run', '--concurrency=2');
@@ -260,52 +260,55 @@ describe('skillbe run', SLOW, () => {
 
     expect(code).toBe(2);
     expect(stderr).toContain('unclosed quote');
-    expect(existsSync(path.join(root, 'skillbe.result.json'))).toBe(false);
+    expect(existsSync(path.join(root, 'skill-be.result.json'))).toBe(false);
   });
 
   it('exits 2 in CI when an apiKeyEnv variable is unset, naming the variable', async () => {
     vi.stubEnv('CI', 'true');
-    vi.stubEnv('SKILLBE_TEST_KEY', undefined);
+    vi.stubEnv('SKILL_BE_TEST_KEY', undefined);
     await makeProject();
     const config = configText().replace(
       /model:\n {2}adapter: command\n {2}id: fake-model\n {2}run: .*\n/,
       // A bin that cannot start: outside CI the call would fail differently.
-      'model:\n  adapter: claude-cli\n  id: fake-model\n  bin: skillbe-no-such-cli\n' +
-        '  apiKeyEnv: SKILLBE_TEST_KEY\n',
+      'model:\n  adapter: claude-cli\n  id: fake-model\n  bin: skill-be-no-such-cli\n' +
+        '  apiKeyEnv: SKILL_BE_TEST_KEY\n',
     );
     expect(config).toContain('apiKeyEnv');
-    await writeFile(path.join(root, 'skillbe.yaml'), config);
+    await writeFile(path.join(root, 'skill-be.yaml'), config);
 
     const { code, stderr } = await cli('run');
 
     expect(code).toBe(2);
-    expect(stderr).toContain('$SKILLBE_TEST_KEY');
-    expect(stderr).not.toContain('skillbe-no-such-cli');
-    expect(existsSync(path.join(root, 'skillbe.result.json'))).toBe(false);
+    expect(stderr).toContain('$SKILL_BE_TEST_KEY');
+    expect(stderr).not.toContain('skill-be-no-such-cli');
+    expect(existsSync(path.join(root, 'skill-be.result.json'))).toBe(false);
   });
 
   it('exits 2 and leaves the result file alone when the model CLI cannot start', async () => {
     await makeProject();
     expect((await cli('run')).code).toBe(0);
-    const before = await readFile(path.join(root, 'skillbe.result.json'), 'utf8');
-    await writeFile(path.join(root, 'skillbe.yaml'), configText({ modelRun: 'skillbe-no-such-cli' }));
+    const before = await readFile(path.join(root, 'skill-be.result.json'), 'utf8');
+    await writeFile(
+      path.join(root, 'skill-be.yaml'),
+      configText({ modelRun: 'skill-be-no-such-cli' }),
+    );
 
     const { code, stdout, stderr } = await cli('run');
 
     expect(code).toBe(2);
-    expect(stderr).toContain('skillbe-no-such-cli');
+    expect(stderr).toContain('skill-be-no-such-cli');
     expect(stdout).not.toContain('NOT READY');
-    expect(await readFile(path.join(root, 'skillbe.result.json'), 'utf8')).toBe(before);
+    expect(await readFile(path.join(root, 'skill-be.result.json'), 'utf8')).toBe(before);
   });
 
   it('exits 2 on an invalid result file, before any model call', async () => {
     await makeProject();
-    await writeFile(path.join(root, 'skillbe.result.json'), '<<<<<<< HEAD\n');
+    await writeFile(path.join(root, 'skill-be.result.json'), '<<<<<<< HEAD\n');
 
     const { code, stderr } = await cli('run');
 
     expect(code).toBe(2);
-    expect(stderr).toContain('skillbe.result.json');
+    expect(stderr).toContain('skill-be.result.json');
     expect(existsSync(resultsDir())).toBe(false);
   });
 
@@ -317,8 +320,8 @@ describe('skillbe run', SLOW, () => {
     ],
     [
       'an unresolvable typecheck library',
-      ['  typecheck:', '    library: skillbe-no-such-lib'],
-      'skillbe-no-such-lib',
+      ['  typecheck:', '    library: skill-be-no-such-lib'],
+      'skill-be-no-such-lib',
     ],
     [
       'a coverage preset with no entry',
@@ -365,7 +368,7 @@ describe('skillbe run', SLOW, () => {
   });
 });
 
-describe('skillbe verify', SLOW, () => {
+describe('skill-be verify', SLOW, () => {
   it('exits 0 right after a passing run, and 1 once a SKILL.md changed', async () => {
     await makeProject();
     expect((await cli('run')).code).toBe(0);
@@ -416,7 +419,7 @@ describe('skillbe verify', SLOW, () => {
 
   it('exits 2 on a result file with conflict markers', async () => {
     await makeProject();
-    await writeFile(path.join(root, 'skillbe.result.json'), '<<<<<<< HEAD\n{}\n');
+    await writeFile(path.join(root, 'skill-be.result.json'), '<<<<<<< HEAD\n{}\n');
 
     const { code, stderr } = await cli('verify');
 
@@ -432,7 +435,7 @@ describe('skillbe verify', SLOW, () => {
   });
 });
 
-describe('skillbe check', SLOW, () => {
+describe('skill-be check', SLOW, () => {
   it('exits 1 on a blocking typecheck problem and prints the skipped blocks', async () => {
     await makeProject(
       { checks: ['  typecheck:', '    preset: typescript'] },
@@ -472,7 +475,7 @@ describe('skillbe check', SLOW, () => {
     expect(warning.code).toBe(0);
     expect(warning.stdout).toContain('halve, triple');
 
-    await writeFile(path.join(root, 'skillbe.yaml'), configText({ checks: checks(true) }));
+    await writeFile(path.join(root, 'skill-be.yaml'), configText({ checks: checks(true) }));
     const blocking = await cli('check');
     expect(blocking.code).toBe(1);
     expect(blocking.stdout).toContain('halve, triple');
@@ -486,14 +489,14 @@ describe('skillbe check', SLOW, () => {
   });
 });
 
-describe('skillbe triage', SLOW, () => {
+describe('skill-be triage', SLOW, () => {
   it('exits 2 when there is no run to triage', async () => {
     await makeProject();
 
     const { code, stderr } = await cli('triage');
 
     expect(code).toBe(2);
-    expect(stderr).toContain('run `skillbe run` before triage');
+    expect(stderr).toContain('run `skill-be run` before triage');
   });
 
   it.each([
@@ -531,7 +534,7 @@ describe('usage', () => {
     const { code, stdout } = await cli(...a);
 
     expect(code).toBe(0);
-    expect(stdout).toMatch(/^Usage: skillbe <command>/);
+    expect(stdout).toMatch(/^Usage: skill-be <command>/);
     for (const name of ['run', 'verify', 'check', 'triage']) expect(stdout).toContain(name);
   });
 
@@ -549,7 +552,7 @@ describe('usage', () => {
 
     expect(code).toBe(2);
     expect(stderr).toContain(message);
-    expect(stderr).toContain('skillbe --help');
+    expect(stderr).toContain('skill-be --help');
   });
 
   it('exits 2 when the config file is missing', async () => {

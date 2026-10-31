@@ -1,7 +1,7 @@
 skills: ./skills
 evals: ./evals
 
-# The model under test and the judge. For apiKeyEnv, see "Credentials" in skillBe's README.
+# The model under test and the judge. For apiKeyEnv, see "Credentials" in skill-be's README.
 model:
   adapter: claude-cli
   id: claude-sonnet-5-5

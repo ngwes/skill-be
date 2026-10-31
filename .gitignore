@@ -1,6 +1,6 @@
 node_modules/
 dist/
-.skillbe/
+.skill-be/
 # Local acceptance runs: configs, results and a library copy that stay on one machine.
 examples/.acceptance/
 docs/superpowers/

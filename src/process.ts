@@ -51,7 +51,7 @@ export function killActiveChildren(): void {
 export function runProcess(opts: ProcessOptions): Promise<ProcessResult> {
   return new Promise((resolve, reject) => {
     if (stopping) {
-      reject(startError(opts.bin, new Error('skillBe is stopping')));
+      reject(startError(opts.bin, new Error('skill-be is stopping')));
       return;
     }
     let child: ChildProcess;

@@ -31,7 +31,7 @@ const API = [
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(os.tmpdir(), 'skillbe-coverage-'));
+  dir = await mkdtemp(path.join(os.tmpdir(), 'skill-be-coverage-'));
 });
 
 afterEach(async () => {
@@ -239,7 +239,7 @@ describe('coverage with a command', () => {
   it('fails with a clear error when the command cannot be started', async () => {
     const cfg: CoverageConfig = {
       ignore: [],
-      command: 'skillbe-no-such-command --list',
+      command: 'skill-be-no-such-command --list',
       blocking: false,
     };
 
@@ -259,10 +259,10 @@ describe('coverage with a command', () => {
   });
 });
 
-// Runs against a local checkout of mini-fp-skills (SKILLBE_SKILLS_REPO, its root) and the
-// mini-fp source entry its skills document (SKILLBE_MINI_FP_ENTRY); skipped without both.
-const SKILLS_REPO = process.env.SKILLBE_SKILLS_REPO;
-const MINI_FP_ENTRY = process.env.SKILLBE_MINI_FP_ENTRY;
+// Runs against a local checkout of mini-fp-skills (SKILL_BE_SKILLS_REPO, its root) and the
+// mini-fp source entry its skills document (SKILL_BE_MINI_FP_ENTRY); skipped without both.
+const SKILLS_REPO = process.env.SKILL_BE_SKILLS_REPO;
+const MINI_FP_ENTRY = process.env.SKILL_BE_MINI_FP_ENTRY;
 
 describe.runIf(Boolean(SKILLS_REPO && MINI_FP_ENTRY))('the mini-fp-skills coverage', () => {
   const REPO = SKILLS_REPO ?? '';
@@ -312,7 +312,7 @@ describe('validateCoverage', () => {
   });
 
   it('accepts a command without running it', async () => {
-    const cfg: CoverageConfig = { ignore: [], command: 'skillbe-no-such-binary', blocking: false };
+    const cfg: CoverageConfig = { ignore: [], command: 'skill-be-no-such-binary', blocking: false };
 
     await expect(validateCoverage(cfg, FIXTURES)).resolves.toBeUndefined();
   });

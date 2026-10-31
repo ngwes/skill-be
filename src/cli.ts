@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The `skillbe` command: `run`, `verify`, `check` and `triage`. `main` returns the exit code: 0
+ * The `skill-be` command: `run`, `verify`, `check` and `triage`. `main` returns the exit code: 0
  * when every skill is READY and every blocking check passes, 1 when anything blocks, 2 for a
  * usage or config error. Only the entry point at the bottom exits the process.
  */
@@ -20,7 +20,7 @@ import { renderReport, toSummary } from './report.js';
 import {
   mergeResults,
   readResultFile,
-  skillbeVersion,
+  skillBeVersion,
   verifyResults,
   writeResultFile,
   type SkillEntry,
@@ -34,7 +34,7 @@ export type Writer = { write(text: string): unknown };
 
 export type Io = { stdout: Writer; stderr: Writer; cwd: string };
 
-const USAGE = `Usage: skillbe <command> [options]
+const USAGE = `Usage: skill-be <command> [options]
 
 Benchmarks Agent Skills: baseline versus with-skill, LLM-graded and gated.
 
@@ -49,7 +49,7 @@ Commands:
                      Never blocks.
 
 Options:
-  --config <path>    The config file (default: ./skillbe.yaml)
+  --config <path>    The config file (default: ./skill-be.yaml)
   --reps <n>         run: generations per arm per scenario, instead of the config's
   --concurrency <n>  run: model calls in flight at once, instead of the config's
   --below <pct>      triage: also triage criteria that scored under pct% with the skill
@@ -117,16 +117,16 @@ export async function main(argv: string[], io: Io): Promise<number> {
     });
   } catch (error) {
     if (error instanceof UsageError) {
-      err(`skillbe: ${error.message}`);
-      err('Run "skillbe --help" for usage.');
+      err(`skill-be: ${error.message}`);
+      err('Run "skill-be --help" for usage.');
       return 2;
     }
     // A config error, or a CLI that could not start: the user's to fix, not a skill's verdict.
     if (isConfigProblem(error)) {
-      err(`skillbe: ${(error as Error).message}`);
+      err(`skill-be: ${(error as Error).message}`);
       return 2;
     }
-    err(`skillbe: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
+    err(`skill-be: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
     return 1;
   }
 }
@@ -202,7 +202,7 @@ type Project = {
  * skill to work on is a config error: it never passes silently.
  */
 async function loadProject(args: Args, ctx: Context): Promise<Project> {
-  const configPath = path.resolve(ctx.cwd, args.options.get('config') ?? 'skillbe.yaml');
+  const configPath = path.resolve(ctx.cwd, args.options.get('config') ?? 'skill-be.yaml');
   const config = await loadConfig(configPath);
   const all = await loadSuites(config);
   const selected = args.skills.length > 0 ? await loadSuites(config, args.skills) : all;
@@ -291,7 +291,7 @@ async function runCommand(args: Args, ctx: Context): Promise<number> {
   // Before the first model call: a broken result file or check setting must not cost a run.
   const existing = await readResultFile(config.resultFile);
   await validateChecks(config);
-  const version = await skillbeVersion();
+  const version = await skillBeVersion();
   // The files as the run reads them, before a long run gives anyone time to edit them.
   const fingerprints = await Promise.all(
     project.selected.map((suite) => skillFingerprint(config, suite)),
@@ -337,7 +337,7 @@ async function runCommand(args: Args, ctx: Context): Promise<number> {
     };
     await writeResultFile(
       config.resultFile,
-      mergeResults(existing, { skillbeVersion: version, skills: entries }),
+      mergeResults(existing, { skillBeVersion: version, skills: entries }),
     );
   }
 

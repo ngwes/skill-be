@@ -158,7 +158,7 @@ describe('claude-cli', () => {
 
   it('turns off auto memory, which --setting-sources does not cover, and inherits the rest', async () => {
     vi.stubEnv('CLAUDE_CODE_DISABLE_AUTO_MEMORY', '0');
-    vi.stubEnv('SKILLBE_TEST_INHERITED', 'kept');
+    vi.stubEnv('SKILL_BE_TEST_INHERITED', 'kept');
     vi.stubEnv('X_KEY', 'sk-test-claude');
     const { run, calls } = fakeRunner({ stdout: 'ok' });
 
@@ -167,7 +167,7 @@ describe('claude-cli', () => {
 
     for (const call of calls) {
       expect(call.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');
-      expect(call.env?.SKILLBE_TEST_INHERITED).toBe('kept');
+      expect(call.env?.SKILL_BE_TEST_INHERITED).toBe('kept');
     }
   });
 
@@ -349,9 +349,9 @@ describe('opencode-cli', () => {
       '-m',
       'google/gemini-2.5-flash',
       '--agent',
-      'skillbe',
+      'skill-be',
       '--title',
-      'skillbe',
+      'skill-be',
       '--pure',
       '--format',
       'json',
@@ -398,7 +398,7 @@ describe('opencode-cli', () => {
     expect(env.OPENCODE_PERMISSION).toBeUndefined();
     const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
     expect(config.mcp).toEqual({});
-    expect(config.agent.skillbe).toMatchObject({
+    expect(config.agent['skill-be']).toMatchObject({
       mode: 'primary',
       prompt: NO_TOOLS_NOTE,
       tools: { '*': false },
@@ -530,7 +530,7 @@ describe('command', () => {
   });
 
   it('reports a command that cannot start as kind spawn', async () => {
-    const error = await adapterError(commandAdapter('p', ctx(command('skillbe-no-such-binary'))));
+    const error = await adapterError(commandAdapter('p', ctx(command('skill-be-no-such-binary'))));
     expect(error.kind).toBe('spawn');
   });
 

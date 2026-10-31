@@ -12,7 +12,7 @@ const CONFIG_YAML =
   'grader:\n  adapter: command\n  id: fake\n';
 
 function fixtureConfig(name: string) {
-  const file = fileURLToPath(new URL(`./fixtures/${name}/skillbe.yaml`, import.meta.url));
+  const file = fileURLToPath(new URL(`./fixtures/${name}/skill-be.yaml`, import.meta.url));
   return loadConfig(file);
 }
 
@@ -108,11 +108,11 @@ describe('loadSuites on malformed projects', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(path.join(os.tmpdir(), 'skillbe-suite-'));
+    dir = await mkdtemp(path.join(os.tmpdir(), 'skill-be-suite-'));
     await mkdir(path.join(dir, 'skills', 'x'), { recursive: true });
     await mkdir(path.join(dir, 'evals'));
     await writeFile(path.join(dir, 'skills', 'x', 'SKILL.md'), '# X\n');
-    await writeFile(path.join(dir, 'skillbe.yaml'), CONFIG_YAML);
+    await writeFile(path.join(dir, 'skill-be.yaml'), CONFIG_YAML);
   });
 
   afterEach(async () => {
@@ -121,7 +121,7 @@ describe('loadSuites on malformed projects', () => {
 
   async function loadWithEval(content: string) {
     await writeFile(path.join(dir, 'evals', 'x.json'), content);
-    return loadSuites(await loadConfig(path.join(dir, 'skillbe.yaml')));
+    return loadSuites(await loadConfig(path.join(dir, 'skill-be.yaml')));
   }
 
   async function failureFor(content: string): Promise<ConfigError> {
@@ -221,7 +221,9 @@ describe('loadSuites on malformed projects', () => {
       JSON.stringify({ skill: 'x', scenarios: [scenario()] }),
     );
 
-    const { suites, warnings } = await loadSuites(await loadConfig(path.join(dir, 'skillbe.yaml')));
+    const { suites, warnings } = await loadSuites(
+      await loadConfig(path.join(dir, 'skill-be.yaml')),
+    );
 
     expect(suites.map((s) => s.name)).toEqual(['x']);
     expect(warnings).toEqual([]);
@@ -230,7 +232,7 @@ describe('loadSuites on malformed projects', () => {
   it('rejects a skills directory that does not exist', async () => {
     await rm(path.join(dir, 'skills'), { recursive: true });
 
-    const error = await loadSuites(await loadConfig(path.join(dir, 'skillbe.yaml'))).catch(
+    const error = await loadSuites(await loadConfig(path.join(dir, 'skill-be.yaml'))).catch(
       (e: unknown) => e,
     );
 

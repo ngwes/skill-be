@@ -38,7 +38,7 @@ const headingText = (raw) =>
 // Absolute links, with the `base`: the links validator only checks those (relative ones are skipped)
 const pageLink = (slug) => `${base}/${slug === '' ? '' : `${slug}/`}`;
 
-// The README marks a temporary note (to delete once skillBe is on npm) with HTML comments around a
+// The README marks a temporary note (to delete once skill-be is on npm) with HTML comments around a
 // `> **Note:**` quote. On the site it becomes a Starlight aside.
 const NOTE = /<!-- BEGIN not-on-npm note[^\n]*?-->\n([\s\S]*?)\n<!-- END not-on-npm note -->/g;
 const toAside = (_match, quote) => {
@@ -47,8 +47,8 @@ const toAside = (_match, quote) => {
 		.map((line) => line.replace(/^>\s?/, ''))
 		.join('\n')
 		.replace(/^\*\*Note:\*\*\s*/, '')
-		// "until ..." -> "Until ...", but a name such as skillBe stays as it is
-		.replace(/^[a-z]+\b/, (word) => word[0].toUpperCase() + word.slice(1));
+		// "until ..." -> "Until ...", but a hyphenated name such as skill-be stays as it is
+		.replace(/^[a-z]+\b(?!-)/, (word) => word[0].toUpperCase() + word.slice(1));
 	return `:::note[Not on npm yet]\n${text}\n:::`;
 };
 

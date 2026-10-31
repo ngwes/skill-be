@@ -14,7 +14,7 @@ import { isConfigProblem } from './adapters/common.js';
 export type Verdicts = (0 | 1)[];
 
 /**
- * The part of the grader prompt a user may replace with `graderPrompt` in `skillbe.yaml`: the
+ * The part of the grader prompt a user may replace with `graderPrompt` in `skill-be.yaml`: the
  * role sentence and the rules that say how to judge. Everything from `Criteria:` on is fixed,
  * see {@link buildGraderPrompt}.
  */

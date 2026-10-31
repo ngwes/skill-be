@@ -65,11 +65,11 @@ function readmeShows(output: string): boolean {
   return readme().includes(`\n${FENCE}\n${output}${FENCE}\n`);
 }
 
-/** What `skillbe check` prints for the demo project in `dir`. */
+/** What `skill-be check` prints for the demo project in `dir`. */
 async function check(dir: string): Promise<{ code: number; stdout: string; stderr: string }> {
   let stdout = '';
   let stderr = '';
-  const code = await main(['check', '--config', path.join(dir, 'skillbe.yaml')], {
+  const code = await main(['check', '--config', path.join(dir, 'skill-be.yaml')], {
     stdout: { write: (text: string) => (stdout += text) },
     stderr: { write: (text: string) => (stderr += text) },
     cwd: ROOT,
@@ -89,7 +89,7 @@ describe('the README example', () => {
   });
 
   it('uses claude-cli and checks the library with relative paths', async () => {
-    const config = await loadConfig(path.join(DEMO, 'skillbe.yaml'));
+    const config = await loadConfig(path.join(DEMO, 'skill-be.yaml'));
 
     expect(config.models.map((model) => model.adapter)).toEqual(['claude-cli']);
     expect(config.grader.adapter).toBe('claude-cli');
@@ -109,7 +109,7 @@ describe('the README example', () => {
   });
 
   it('fails check on the broken example the README shows', { timeout: 60_000 }, async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'skillbe-demo-'));
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'skill-be-demo-'));
     try {
       await cp(DEMO, dir, { recursive: true });
       const skill = path.join(dir, 'skills', 'money', 'SKILL.md');

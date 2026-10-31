@@ -143,7 +143,7 @@ describe('runProcess', () => {
       stdin: 'prompt',
       timeoutMs: 10_000,
       cwd,
-      env: { ...process.env, SKILLBE_TEST_VAR: 'from-env' },
+      env: { ...process.env, SKILL_BE_TEST_VAR: 'from-env' },
     });
 
     expect(JSON.parse(result.stdout)).toEqual({
@@ -156,8 +156,8 @@ describe('runProcess', () => {
 
   it('rejects when the binary cannot be started', async () => {
     await expect(
-      runProcess({ bin: 'skillbe-no-such-binary', args: [], stdin: '', timeoutMs: 10_000 }),
-    ).rejects.toThrow(/skillbe-no-such-binary/);
+      runProcess({ bin: 'skill-be-no-such-binary', args: [], stdin: '', timeoutMs: 10_000 }),
+    ).rejects.toThrow(/skill-be-no-such-binary/);
   });
 });
 
@@ -177,7 +177,7 @@ describe('killActiveChildren', () => {
 
   /** A child that writes `marker` as soon as it starts, so a test can tell whether it did. */
   async function markerChild(): Promise<{ opts: ProcessOptions; marker: string }> {
-    markerDir = await mkdtemp(path.join(os.tmpdir(), 'skillbe-stop-'));
+    markerDir = await mkdtemp(path.join(os.tmpdir(), 'skill-be-stop-'));
     const marker = path.join(markerDir, 'started');
     const code = `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'x')`;
     return { opts: { bin: node, args: ['-e', code], stdin: '', timeoutMs: 10_000 }, marker };
@@ -252,7 +252,7 @@ describe.runIf(process.platform === 'win32')('runProcess with a Windows .cmd shi
 
   // A shim shaped like npm's: it forwards %* to node, so cmd.exe parses the arguments twice.
   async function makeShim(name: string, target: string): Promise<NodeJS.ProcessEnv> {
-    dir = await mkdtemp(path.join(os.tmpdir(), 'skillbe shim & (x)-'));
+    dir = await mkdtemp(path.join(os.tmpdir(), 'skill-be shim & (x)-'));
     await writeFile(
       path.join(dir, `${name}.cmd`),
       `@ECHO off\r\nSETLOCAL\r\n"${node}" "${script(target)}" %*\r\n`,
@@ -264,7 +264,7 @@ describe.runIf(process.platform === 'win32')('runProcess with a Windows .cmd shi
   }
 
   it('finds the shim on PATH by its bare name and passes hostile arguments intact', async () => {
-    const env = await makeShim('skillbe-shim', 'print-args.mjs');
+    const env = await makeShim('skill-be-shim', 'print-args.mjs');
     const args = [
       '',
       'a b',
@@ -290,7 +290,7 @@ describe.runIf(process.platform === 'win32')('runProcess with a Windows .cmd shi
 
     const stdin = 'a & b | "c"';
 
-    const result = await runProcess({ bin: 'skillbe-shim', args, stdin, timeoutMs: 10_000, env });
+    const result = await runProcess({ bin: 'skill-be-shim', args, stdin, timeoutMs: 10_000, env });
 
     expect(result.code).toBe(0);
     const report = JSON.parse(result.stdout) as { argv: string[]; stdin: string };
@@ -299,10 +299,10 @@ describe.runIf(process.platform === 'win32')('runProcess with a Windows .cmd shi
   });
 
   it('kills the process behind the shim on timeout', KILL_TEST, async () => {
-    const env = await makeShim('skillbe-sleeper', 'sleep-forever.mjs');
+    const env = await makeShim('skill-be-sleeper', 'sleep-forever.mjs');
 
     const result = await runProcess({
-      bin: 'skillbe-sleeper',
+      bin: 'skill-be-sleeper',
       args: [],
       stdin: '',
       timeoutMs: 1000,
@@ -316,10 +316,10 @@ describe.runIf(process.platform === 'win32')('runProcess with a Windows .cmd shi
   });
 
   it('rejects an argument with a line break, which cmd.exe cannot pass', async () => {
-    const env = await makeShim('skillbe-shim', 'print-args.mjs');
+    const env = await makeShim('skill-be-shim', 'print-args.mjs');
 
     await expect(
-      runProcess({ bin: 'skillbe-shim', args: ['two\nlines'], stdin: '', timeoutMs: 10_000, env }),
+      runProcess({ bin: 'skill-be-shim', args: ['two\nlines'], stdin: '', timeoutMs: 10_000, env }),
     ).rejects.toThrow(/line break/);
   });
 
@@ -328,21 +328,27 @@ describe.runIf(process.platform === 'win32')('runProcess with a Windows .cmd shi
   it.each(['%PATH%', '%OS%', '%OS:W=X%', '%OS:*W=Z%', '100%'])(
     'rejects an argument with a percent sign, which cmd.exe would expand: %s',
     async (arg) => {
-      const env = await makeShim('skillbe-shim', 'print-args.mjs');
+      const env = await makeShim('skill-be-shim', 'print-args.mjs');
 
       await expect(
-        runProcess({ bin: 'skillbe-shim', args: [arg], stdin: '', timeoutMs: 10_000, env }),
+        runProcess({ bin: 'skill-be-shim', args: [arg], stdin: '', timeoutMs: 10_000, env }),
       ).rejects.toThrow(/percent sign/);
     },
   );
 
   it('does not run a command smuggled in through a %VAR:x=y% substitution', async () => {
-    const env = await makeShim('skillbe-shim', 'print-args.mjs');
+    const env = await makeShim('skill-be-shim', 'print-args.mjs');
     const injected = path.join(dir!, 'INJECTED.txt');
     env.SKB_X = `a&echo pwned>"${injected}"&`;
 
     await expect(
-      runProcess({ bin: 'skillbe-shim', args: ['%SKB_X:Q=Q%'], stdin: '', timeoutMs: 10_000, env }),
+      runProcess({
+        bin: 'skill-be-shim',
+        args: ['%SKB_X:Q=Q%'],
+        stdin: '',
+        timeoutMs: 10_000,
+        env,
+      }),
     ).rejects.toThrow(/percent sign/);
     expect(existsSync(injected)).toBe(false);
   });
