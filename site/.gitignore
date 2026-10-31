@@ -1,0 +1,20 @@
+# build output
+dist/
+# generated types
+.astro/
+
+# generated from the repository README (see scripts/sync-content.mjs)
+src/content/docs/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+
+# environment variables
+.env
+.env.production
+
+# macOS-specific files
+.DS_Store

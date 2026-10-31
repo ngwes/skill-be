@@ -1,0 +1,23 @@
+{
+  "name": "skillbe-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "sync": "node scripts/sync-content.mjs",
+    "predev": "npm run sync",
+    "dev": "astro dev",
+    "start": "astro dev",
+    "prebuild": "npm run sync",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.7",
+    "astro": "^7.2.10",
+    "github-slugger": "^2.0.0",
+    "sharp": "^0.35.3",
+    "starlight-links-validator": "^0.27.0"
+  }
+}
