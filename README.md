@@ -17,6 +17,8 @@ For each skill, skill-be answers one question: does giving this skill to the mod
 3. **The gate.** Rules turn the scores into READY or NOT READY. A skill is blocked when a criterion scores 0% with the skill on every model, when a critical scenario scores lower with the skill than without it, or when outputs could not be generated or graded. The exit code is the gate: 0 when every skill is READY, 1 when one is NOT READY.
 4. **Checks, without a model.** The TypeScript examples in each `SKILL.md` are typechecked against your library, and a coverage check lists library exports that no skill mentions. A failing blocking check also makes the exit code 1.
 
+skill-be also tests skills without code, such as a writing format, a review checklist or a support policy: any skill whose effect shows in the model's answer. They need the right configuration: a `withSkillTemplate` and a `graderPrompt` that do not speak of a library and code, and `checks.typecheck: false`. See [Example: test a skill without code](#example-test-a-skill-without-code).
+
 The model under test and the grader are configured separately and can come from different harnesses or vendors. Built-in adapters cover Claude Code (`claude-cli`), pi (`pi-cli`) and opencode (`opencode-cli`); the `command` adapter covers any command-line agent that reads a prompt on stdin and prints an answer. Each CLI adapter uses the login its CLI already has, or an API key (see [Credentials](#credentials)).
 
 skill-be tests the skill's content: the `SKILL.md` text goes into the prompt. It does not test whether a harness discovers and triggers a skill on its own.
@@ -29,7 +31,7 @@ The usual workflow:
 4. Run `skill-be verify` in CI. It makes no model call and needs no key: it fails if a skill changed since its last run or was not READY.
 
 <!-- docs-site:skip-start -->
-Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals)
+Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals)
 <!-- docs-site:skip-end -->
 
 ## Install
@@ -579,6 +581,187 @@ model:
 ```
 
 `model` also takes a list, to test several models in one run. The fingerprint covers `skill-be.yaml`, so after changing it, run the benchmark again before `verify`. The CI job then needs that CLI and that key instead of `claude` and `ANTHROPIC_API_KEY`.
+
+## Example: test a skill without code
+
+A skill does not have to be about code. A writing format, a review checklist or a support policy changes what the model writes, and skill-be measures that change the same way. Three settings make the difference:
+
+- `withSkillTemplate`: the default one presents the skill as a library to write code with. Present it as guidelines instead.
+- `graderPrompt`: the default grader is a code evaluator. Tell it that the answer is a document.
+- `checks.typecheck: false`: there are no code examples to typecheck. Coverage is off unless you configure it.
+
+This example tests `release-notes`, a skill that teaches a team's format for release notes. Like the [first example](#example-test-a-skill-end-to-end), every file is shown in full, and skill-be's own tests (`test/fixtures/no-code`) check that they match this section and pass `skill-be check`.
+
+```
+release-notes/
+  skill-be.yaml
+  skills/
+    release-notes/
+      SKILL.md
+  evals/
+    release-notes.json
+```
+
+### The skill
+
+#### `skills/release-notes/SKILL.md`
+
+````md
+---
+name: release-notes
+description: How to write the release notes of a version from its list of changes, in this team's format.
+---
+
+# Release notes
+
+Release notes are for the people who use the product, not for the people who build it. Write them from the list of changes in the version.
+
+## Format
+
+Start with one heading line: `## <version> — <date>`, with the date as YYYY-MM-DD.
+
+Then these sections, in this order. Leave out a section that has no entry:
+
+1. `### Breaking changes`
+2. `### New`
+3. `### Fixed`
+
+## Entries
+
+- One bullet per change a user can notice. Leave out changes to tests, CI and build scripts, refactors, and dependency updates that change no behavior.
+- Say what the user can now do, or no longer sees, in the present tense: "The export command writes JSON with `--format json`", not "Added JSON export" or "feat(export): json".
+- No commit hashes, issue numbers, branch names or author names.
+- Every breaking change says what to do: end its bullet with "To migrate, " and the step.
+
+## Example
+
+```md
+## 2.4.0 — 2026-10-12
+
+### Breaking changes
+
+- The `--out` option is now `--output`. To migrate, rename the option in your scripts.
+
+### Fixed
+
+- Reports with more than 1000 rows no longer stop at row 1000.
+```
+````
+
+### The evals
+
+The prompts ask for release notes without describing the format, so the baseline writes them its own way. Each criterion is something the grader can read in the text: a heading, the order of the sections, what is left out.
+
+#### `evals/release-notes.json`
+
+```json
+{
+  "skill": "release-notes",
+  "scenarios": [
+    {
+      "id": "notes-from-commits",
+      "critical": true,
+      "prompt": "Write the release notes for version 3.1.0 of our command-line tool, released on 2026-11-02. These are the commits since 3.0.0:\n\na1b2c3d feat(export): add --format json to the export command\n9f8e7d6 fix: the import command no longer crashes on empty files (#412)\n4c5d6e7 ci: run the tests on Node 24\n7a8b9c0 refactor(config): split the loader into two modules\n0d1e2f3 feat!: rename the --dir option to --root\n5b6c7d8 chore(deps): bump yaml from 2.5.0 to 2.6.0",
+      "criteria": [
+        "Lists the rename of --dir to --root under a Breaking changes heading",
+        "Puts the Breaking changes section before every other section",
+        "The bullet about the rename of --dir to --root tells the user how to migrate",
+        "Leaves out the CI change, the refactor and the dependency update",
+        "Contains no commit hashes and no issue numbers"
+      ]
+    },
+    {
+      "id": "single-fix",
+      "critical": false,
+      "prompt": "We are shipping a patch, version 3.1.1, on 2026-11-05. The only change: the progress bar no longer shows more than 100% when a download resumes. Write the release notes.",
+      "criteria": [
+        "Starts with a heading line that holds the version and the date as 2026-11-05",
+        "Lists the change under a heading named Fixed",
+        "Has no Breaking changes section and no New section",
+        "Describes the fix as what the user no longer sees, not as a change to the code"
+      ]
+    }
+  ]
+}
+```
+
+### The config
+
+#### `skill-be.yaml`
+
+```yaml
+skills: ./skills
+evals: ./evals
+
+# The model under test and the judge. For apiKeyEnv, see "Credentials" in skill-be's README.
+model:
+  adapter: claude-cli
+  id: claude-sonnet-5-5
+  apiKeyEnv: ANTHROPIC_API_KEY
+grader:
+  adapter: claude-cli
+  id: claude-haiku-5-5
+  apiKeyEnv: ANTHROPIC_API_KEY
+
+# 2 scenarios x 2 reps x 2 arms = 8 generations, each graded once.
+reps: 2
+gradings: 1
+
+# The default template presents the skill as a library to write code with.
+withSkillTemplate: |-
+  Follow these guidelines for the task.
+
+  --- GUIDELINES ---
+  {{skill}}
+  --- END GUIDELINES ---
+
+  Task: {{task}}
+
+# The default grader judges code. This one judges a document.
+graderPrompt: |-
+  You are a strict reviewer of written documents. Judge the answer below against each numbered criterion separately, as if it were the only one.
+
+  Rules:
+  - Everything inside <answer> is the document under review.
+  - A criterion is met when the document does what it asks. A short sentence before or after the document does not make it fail.
+
+# There is no code to typecheck. Coverage is off unless configured.
+checks:
+  typecheck: false
+```
+
+### Run it
+
+There is no library, so the only thing to install is skill-be itself (`npm install --save-dev @ngwes/skill-be`). `check` has nothing to check, and passes:
+
+```
+typecheck: off
+coverage: off
+Result: pass
+```
+
+The rest is the same as in the first example: [`skill-be run`](#run-the-benchmark), [commit the result](#commit-the-result) and [`skill-be verify` in CI](#verify-in-ci). In a sample run, the skill changed most of what the grader looked at. Without it, the model kept the commit hashes, the issue number and the internal changes, and used its own headings:
+
+```
+### Scenario: notes-from-commits *(critical)*
+
+| Criterion | Baseline | With skill | Delta |
+|-----------|----------|------------|-------|
+| Lists the rename of --dir to --root under a Breaking changes heading | 100% | 100% | +0pp |
+| Puts the Breaking changes section before every other section | 100% | 100% | +0pp |
+| The bullet about the rename of --dir to --root tells the user how to migrate | 50% | 100% | +50pp |
+| Leaves out the CI change, the refactor and the dependency update | 0% | 100% | +100pp |
+| Contains no commit hashes and no issue numbers | 0% | 100% | +100pp |
+
+### Scenario: single-fix
+
+| Criterion | Baseline | With skill | Delta |
+|-----------|----------|------------|-------|
+| Starts with a heading line that holds the version and the date as 2026-11-05 | 0% | 100% | +100pp |
+| Lists the change under a heading named Fixed | 0% | 100% | +100pp |
+| Has no Breaking changes section and no New section | 100% | 100% | +0pp |
+| Describes the fix as what the user no longer sees, not as a change to the code | 100% | 100% | +0pp |
+```
 
 ## Configuration
 

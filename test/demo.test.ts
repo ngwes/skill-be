@@ -7,10 +7,13 @@ import { describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 
-// The README's end-to-end example must stay the project in test/fixtures/demo, which must pass.
+// The README's two examples must stay the projects in test/fixtures/demo and test/fixtures/no-code,
+// which must pass.
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DEMO = path.join(ROOT, 'test', 'fixtures', 'demo');
 const SECTION = '## Example: test a skill end to end';
+const NO_CODE = path.join(ROOT, 'test', 'fixtures', 'no-code');
+const NO_CODE_SECTION = '## Example: test a skill without code';
 const FENCE = '```';
 
 const lf = (text: string): string => text.replace(/\r\n/g, '\n');
@@ -26,13 +29,13 @@ function filesUnder(dir: string): string[] {
 }
 
 /**
- * The files the README's example section shows in full: each is a `#### \`<path>\`` heading
+ * The files an example section of the README shows in full: each is a `#### \`<path>\`` heading
  * followed by a fenced block, whose content (plus the final newline) is the file.
  */
-function readmeFiles(): Map<string, string> {
+function readmeFiles(section = SECTION): Map<string, string> {
   const lines = readme().split('\n');
-  const start = lines.indexOf(SECTION);
-  expect(start, `README.md has no "${SECTION}" section`).toBeGreaterThan(-1);
+  const start = lines.indexOf(section);
+  expect(start, `README.md has no "${section}" section`).toBeGreaterThan(-1);
 
   const files = new Map<string, string>();
   for (let i = start + 1; i < lines.length; i++) {
@@ -126,5 +129,35 @@ describe('the README example', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('the README example without code', () => {
+  it('shows every file of test/fixtures/no-code, and only those', () => {
+    expect([...readmeFiles(NO_CODE_SECTION).keys()].sort()).toEqual(filesUnder(NO_CODE));
+  });
+
+  it('shows each file exactly as it is in test/fixtures/no-code', () => {
+    for (const [file, text] of readmeFiles(NO_CODE_SECTION)) {
+      expect(text, file).toBe(lf(readFileSync(path.join(NO_CODE, file), 'utf8')));
+    }
+  });
+
+  it('replaces the template and the grader prompt, and turns the checks off', async () => {
+    const config = await loadConfig(path.join(NO_CODE, 'skill-be.yaml'));
+
+    expect(config.withSkillTemplate).not.toMatch(/library|code/i);
+    expect(config.graderPrompt).toMatch(/document/);
+    expect(config.checks.typecheck).toBe(false);
+    expect(config.checks.coverage).toBe(false);
+  });
+
+  it('passes check', async () => {
+    const { code, stdout, stderr } = await check(NO_CODE);
+
+    expect(stderr).toBe('');
+    expect(stdout).toBe('typecheck: off\ncoverage: off\nResult: pass\n');
+    expect(code).toBe(0);
+    expect(readmeShows(stdout), 'the README shows this output').toBe(true);
   });
 });
