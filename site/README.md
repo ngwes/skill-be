@@ -5,9 +5,8 @@ A [Starlight](https://starlight.astro.build) site, published to GitHub Pages at 
 The content is **not** stored here. The repository `README.md` is the single source of truth (and keeps rendering on
 GitHub and npm). `scripts/sync-content.mjs` turns it into the site's content before every build: the introduction,
 "How it works" and "Install" make the home page, and every other `##` section gets a page of its own. It adds the page
-titles as front matter, keeps the links between sections working by pointing them at the page that holds the heading,
-and turns the temporary "not on npm" notes (`<!-- BEGIN not-on-npm note … -->`) into Starlight asides. The generated
-files (`src/content/docs/`) are git-ignored. To change the documentation, edit the README.
+titles as front matter, and keeps the links between sections working by pointing them at the page that holds the
+heading. The generated files (`src/content/docs/`) are git-ignored. To change the documentation, edit the README.
 
 Content that belongs to the README only (such as the link to this site, or the list of sections that the sidebar
 replaces) goes between the `<!-- docs-site:skip-start -->` and `<!-- docs-site:skip-end -->` markers: it is removed

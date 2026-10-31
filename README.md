@@ -41,10 +41,6 @@ npm install --save-dev @ngwes/skill-be
 npx skill-be --help
 ```
 
-<!-- BEGIN not-on-npm note: delete at publish -->
-> **Note:** skill-be is not on npm yet. Until it is, clone https://github.com/ngwes/skill-be, run `npm ci && npm run build && npm link`, then `npm link @ngwes/skill-be` in your project.
-<!-- END not-on-npm note -->
-
 `typescript` (5 or 6) is an optional peer dependency. Install it (`npm install --save-dev typescript`) to use the TypeScript typecheck and coverage presets. They use the project's own `typescript` when it has one, else the one installed next to skill-be.
 
 `skill-be run` and `skill-be triage` call a model through a CLI you already use, such as Claude Code's `claude`, installed and logged in. `skill-be check` and `skill-be verify` call no model.
@@ -339,10 +335,6 @@ echo ".skill-be/" >> .gitignore
 ```
 
 In PowerShell, the second line is `Add-Content .gitignore ".skill-be/"`.
-
-<!-- BEGIN not-on-npm note: delete at publish -->
-> **Note:** until skill-be is on npm, install only `typescript` here, then link skill-be as the [Install](#install) note says. Link last: a later `npm install` removes the link.
-<!-- END not-on-npm note -->
 
 ### Check the examples
 
