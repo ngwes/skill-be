@@ -6,6 +6,10 @@
     "type": "git",
     "url": "git+https://github.com/ngwes/skillBe.git"
   },
+  "homepage": "https://ngwes.github.io/skillBe/",
+  "bugs": {
+    "url": "https://github.com/ngwes/skillBe/issues"
+  },
   "bin": {
     "skillbe": "dist/cli.js"
   },

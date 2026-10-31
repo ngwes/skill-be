@@ -2,6 +2,10 @@
 
 skillBe tests Agent Skills (`SKILL.md` files) and gives a pass/fail release gate for them.
 
+<!-- docs-site:skip-start -->
+**Documentation:** <https://ngwes.github.io/skillBe/>
+<!-- docs-site:skip-end -->
+
 A skill is documentation written for a model: it teaches the model how to use your library, follow your conventions or do a task your way. Whether it works is hard to see by reading it. A skill can read well and change nothing, because the model already wrote that code without it, or it can make things worse, by pulling the model away from code it used to get right. Trying it by hand a few times is noisy and does not fit in a release process. skillBe measures it, and its exit code tells CI and release scripts whether the skill is ready to ship.
 
 ## How it works
@@ -24,7 +28,9 @@ The usual workflow:
 3. Commit `skillbe.result.json`, the record of the last run, with the skill.
 4. Run `skillbe verify` in CI. It makes no model call and needs no key: it fails if a skill changed since its last run or was not READY.
 
+<!-- docs-site:skip-start -->
 Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals)
+<!-- docs-site:skip-end -->
 
 ## Install
 
