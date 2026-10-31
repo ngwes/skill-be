@@ -728,6 +728,8 @@ Isolation flags:
 
 Auto memory (`~/.claude/projects/<project>/memory/`) loads whatever the setting sources say, so skill-be also sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in claude's environment, as Claude Code's docs advise for isolated runs.
 
+Each call runs in a fresh, empty temp directory, removed afterwards. In a git repository, claude puts the branch and the recent commit messages in its system prompt, and a commit message such as "accept a bind-based lookup in the option eval" would reach the model under test and the grader. A relative `bin` (starting with `./` or `../`) is resolved against the config file's directory.
+
 Other environment variables are inherited as they are. Provider variables set in your shell, such as `ANTHROPIC_API_KEY` or `ANTHROPIC_BASE_URL`, are not scrubbed: they reach claude and apply to the run.
 
 ### pi-cli

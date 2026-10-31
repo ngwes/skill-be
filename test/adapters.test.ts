@@ -143,8 +143,26 @@ describe('claude-cli', () => {
       args: claudeArgs(settings),
       stdin: 'the prompt',
       timeoutMs: 5000,
-      cwd: ROOT,
     });
+  });
+
+  it('runs in a fresh empty directory, not in the project, and removes it after', async () => {
+    const seen: { dir: string; entries: string[] }[] = [];
+    const record = (opts: ProcessOptions) => {
+      seen.push({ dir: opts.cwd!, entries: readdirSync(opts.cwd!) });
+      return {};
+    };
+
+    await createClaudeCli(fakeRunner({ stdout: 'ok' }, record).run)('p', ctx(settings));
+    await adapterError(createClaudeCli(fakeRunner({ code: 1 }, record).run)('p', ctx(settings)));
+
+    expect(seen).toHaveLength(2);
+    for (const { dir, entries } of seen) {
+      expect(path.relative(ROOT, dir).startsWith('..')).toBe(true);
+      expect(entries).toEqual([]);
+      expect(statSync(dir, { throwIfNoEntry: false })).toBeUndefined();
+    }
+    expect(seen[0]!.dir).not.toBe(seen[1]!.dir);
   });
 
   it('uses its own login when there is no apiKeyEnv', async () => {
@@ -210,6 +228,16 @@ describe('claude-cli', () => {
     await createClaudeCli(run)('p', ctx({ ...settings, bin: 'C:/tools/claude.exe' }));
 
     expect(calls[0]!.bin).toBe('C:/tools/claude.exe');
+  });
+
+  it('resolves a relative bin against the config directory, not its temp directory', async () => {
+    const { run, calls } = fakeRunner({ stdout: 'ok' });
+
+    await createClaudeCli(run)('p', ctx({ ...settings, bin: './node_modules/.bin/claude' }));
+    await createClaudeCli(run)('p', ctx({ ...settings, bin: '../tools/claude' }));
+
+    expect(calls[0]!.bin).toBe(path.resolve(ROOT, 'node_modules/.bin/claude'));
+    expect(calls[1]!.bin).toBe(path.resolve(ROOT, '../tools/claude'));
   });
 
   it('maps a non-zero exit, a timeout and a start failure to AdapterError kinds', async () => {
