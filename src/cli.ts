@@ -9,6 +9,7 @@ import { realpathSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Option, Try, TryAsync } from '@ngwes/mini-fp';
 import { isConfigProblem } from './adapters/index.js';
 import { coverage, validateCoverage } from './checks/coverage.js';
 import { typecheckSkill, validateTypecheck } from './checks/typecheck.js';
@@ -98,13 +99,13 @@ const COMMANDS: Record<CommandName, (args: Args, ctx: Context) => Promise<number
 /** Runs the command `argv` names (without the node and script paths) and returns its exit code. */
 export async function main(argv: string[], io: Io): Promise<number> {
   const err = (line: string): void => void io.stderr.write(`${line}\n`);
-  try {
+  return TryAsync.runAsync(async () => {
     const args = parseArgs(argv);
     if (args === 'help') {
       io.stdout.write(USAGE);
       return 0;
     }
-    return await COMMANDS[args.command](args, {
+    return COMMANDS[args.command](args, {
       write: (text) => void io.stdout.write(text),
       out: (line = '') => void io.stdout.write(`${line}\n`),
       err,
@@ -115,7 +116,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
       },
       cwd: io.cwd,
     });
-  } catch (error) {
+  }).onFail((error) => {
     if (error instanceof UsageError) {
       err(`skill-be: ${error.message}`);
       err('Run "skill-be --help" for usage.');
@@ -128,7 +129,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
     }
     err(`skill-be: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
     return 1;
-  }
+  });
 }
 
 function parseArgs(argv: string[]): Args | 'help' {
@@ -169,24 +170,26 @@ function parseArgs(argv: string[]): Args | 'help' {
   return { command: name, skills, options };
 }
 
-function positiveInteger(args: Args, key: string): number | undefined {
-  const raw = args.options.get(key);
-  if (raw === undefined) return undefined;
-  const value = Number(raw);
-  if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(value)) {
-    throw new UsageError(`--${key} must be a positive integer (got "${raw}")`);
-  }
-  return value;
+/** The option's value; none when it is not given, a `UsageError` when it is not a valid one. */
+function positiveInteger(args: Args, key: string): Option<number> {
+  return Option.from(args.options.get(key)).map((raw) => {
+    const value = Number(raw);
+    if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(value)) {
+      throw new UsageError(`--${key} must be a positive integer (got "${raw}")`);
+    }
+    return value;
+  });
 }
 
-function percentage(args: Args, key: string): number | undefined {
-  const raw = args.options.get(key);
-  if (raw === undefined) return undefined;
-  const value = Number(raw);
-  if (!/^\d+(\.\d+)?$/.test(raw) || value > 100) {
-    throw new UsageError(`--${key} must be a number from 0 to 100 (got "${raw}")`);
-  }
-  return value;
+/** The option's value; none when it is not given, a `UsageError` when it is not a valid one. */
+function percentage(args: Args, key: string): Option<number> {
+  return Option.from(args.options.get(key)).map((raw) => {
+    const value = Number(raw);
+    if (!/^\d+(\.\d+)?$/.test(raw) || value > 100) {
+      throw new UsageError(`--${key} must be a number from 0 to 100 (got "${raw}")`);
+    }
+    return value;
+  });
 }
 
 type Project = {
@@ -202,7 +205,10 @@ type Project = {
  * skill to work on is a config error: it never passes silently.
  */
 async function loadProject(args: Args, ctx: Context): Promise<Project> {
-  const configPath = path.resolve(ctx.cwd, args.options.get('config') ?? 'skill-be.yaml');
+  const configPath = path.resolve(
+    ctx.cwd,
+    Option.from(args.options.get('config')).orElse('skill-be.yaml'),
+  );
   const config = await loadConfig(configPath);
   const all = await loadSuites(config);
   const selected = args.skills.length > 0 ? await loadSuites(config, args.skills) : all;
@@ -284,8 +290,8 @@ async function runCommand(args: Args, ctx: Context): Promise<number> {
   const project = await loadProject(args, ctx);
   const config: Config = {
     ...project.config,
-    reps: reps ?? project.config.reps,
-    concurrency: concurrency ?? project.config.concurrency,
+    reps: reps.orElse(project.config.reps),
+    concurrency: concurrency.orElse(project.config.concurrency),
   };
 
   // Before the first model call: a broken result file or check setting must not cost a run.
@@ -391,8 +397,8 @@ async function triageCommand(args: Args, ctx: Context): Promise<number> {
   const { config, selected } = await loadProject(args, ctx);
 
   const options: TriageOptions = { deps: { log: ctx.err } };
-  if (below !== undefined) options.below = below;
-  if (samples !== undefined) options.samples = samples;
+  below.onSome((value) => (options.below = value));
+  samples.onSome((value) => (options.samples = value));
   const { reportPath, items } = await triage(config, selected, options);
 
   ctx.out(`Triage: ${items.length} failure(s)`);
@@ -408,13 +414,12 @@ async function triageCommand(args: Args, ctx: Context): Promise<number> {
 
 /** True when this module is the script node runs, also through npm's bin link. */
 function isEntryPoint(): boolean {
-  const script = process.argv[1];
-  if (script === undefined) return false;
-  try {
-    return realpathSync(script) === realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
+  return Option.from(process.argv[1]).match(
+    (script) =>
+      Try.run(() => realpathSync(script) === realpathSync(fileURLToPath(import.meta.url)))
+        .onFail(false),
+    () => false,
+  );
 }
 
 /**
