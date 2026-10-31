@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/ngwes/skill-be/compare/v1.0.1...v1.0.2) (2026-10-31)
+
+
+### Bug Fixes
+
+* **claude-cli:** run claude in an empty temp directory, out of the project's git context ([38fab35](https://github.com/ngwes/skill-be/commit/38fab3531626ac3bd318ab5c8b104e3a8e6c1575))
+
 ## [1.0.1](https://github.com/ngwes/skill-be/compare/v1.0.0...v1.0.1) (2026-10-31)
 
 
