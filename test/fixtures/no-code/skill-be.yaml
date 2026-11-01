@@ -1,0 +1,38 @@
+skills: ./skills
+evals: ./evals
+
+# The model under test and the judge. For apiKeyEnv, see "Credentials" in skill-be's README.
+model:
+  adapter: claude-cli
+  id: claude-sonnet-5-5
+  apiKeyEnv: ANTHROPIC_API_KEY
+grader:
+  adapter: claude-cli
+  id: claude-haiku-5-5
+  apiKeyEnv: ANTHROPIC_API_KEY
+
+# 2 scenarios x 2 reps x 2 arms = 8 generations, each graded once.
+reps: 2
+gradings: 1
+
+# The default template presents the skill as a library to write code with.
+withSkillTemplate: |-
+  Follow these guidelines for the task.
+
+  --- GUIDELINES ---
+  {{skill}}
+  --- END GUIDELINES ---
+
+  Task: {{task}}
+
+# The default grader judges code. This one judges a document.
+graderPrompt: |-
+  You are a strict reviewer of written documents. Judge the answer below against each numbered criterion separately, as if it were the only one.
+
+  Rules:
+  - Everything inside <answer> is the document under review.
+  - A criterion is met when the document does what it asks. A short sentence before or after the document does not make it fail.
+
+# There is no code to typecheck. Coverage is off unless configured.
+checks:
+  typecheck: false

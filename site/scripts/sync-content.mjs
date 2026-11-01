@@ -24,6 +24,7 @@ const HOME_SECTIONS = new Set(['how it works', 'install']);
 // Shorter page names than the slug of the section title
 const PAGE_NAMES = new Map([
 	['example: test a skill end to end', 'example'],
+	['example: test a skill without code', 'example-without-code'],
 	['the release gate', 'release-gate'],
 ]);
 

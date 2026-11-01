@@ -1,0 +1,28 @@
+{
+  "skill": "release-notes",
+  "scenarios": [
+    {
+      "id": "notes-from-commits",
+      "critical": true,
+      "prompt": "Write the release notes for version 3.1.0 of our command-line tool, released on 2026-11-02. These are the commits since 3.0.0:\n\na1b2c3d feat(export): add --format json to the export command\n9f8e7d6 fix: the import command no longer crashes on empty files (#412)\n4c5d6e7 ci: run the tests on Node 24\n7a8b9c0 refactor(config): split the loader into two modules\n0d1e2f3 feat!: rename the --dir option to --root\n5b6c7d8 chore(deps): bump yaml from 2.5.0 to 2.6.0",
+      "criteria": [
+        "Lists the rename of --dir to --root under a Breaking changes heading",
+        "Puts the Breaking changes section before every other section",
+        "The bullet about the rename of --dir to --root tells the user how to migrate",
+        "Leaves out the CI change, the refactor and the dependency update",
+        "Contains no commit hashes and no issue numbers"
+      ]
+    },
+    {
+      "id": "single-fix",
+      "critical": false,
+      "prompt": "We are shipping a patch, version 3.1.1, on 2026-11-05. The only change: the progress bar no longer shows more than 100% when a download resumes. Write the release notes.",
+      "criteria": [
+        "Starts with a heading line that holds the version and the date as 2026-11-05",
+        "Lists the change under a heading named Fixed",
+        "Has no Breaking changes section and no New section",
+        "Describes the fix as what the user no longer sees, not as a change to the code"
+      ]
+    }
+  ]
+}
