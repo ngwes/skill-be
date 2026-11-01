@@ -31,7 +31,7 @@ The usual workflow:
 4. Run `skill-be verify` in CI. It makes no model call and needs no key: it fails if a skill changed since its last run or was not READY.
 
 <!-- docs-site:skip-start -->
-Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals)
+Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals) · [Related tools](#related-tools)
 <!-- docs-site:skip-end -->
 
 ## Install
@@ -1288,6 +1288,19 @@ Good scenarios and criteria are most of the value:
 - **One check per criterion.** Each criterion is judged on its own, as if it were the only one. Split "uses A and B" into two.
 
 When a criterion fails with the skill, read the grader's answers (`*.grading-<n>.md` next to the output) before changing the skill, or run `skill-be triage`. One model with one rep is noise: keep several reps, and look at the delta between the arms, not only the score with the skill.
+
+## Related tools
+
+[skillgrade](https://github.com/mgechev/skillgrade) is an eval harness for coding agents, with or without skills. The two tools answer different questions:
+
+- **skill-be** asks whether a skill makes a model better than it is without the skill. Every scenario runs twice, without and with the skill, and the gate blocks regressions. The answer is one turn of text, graded by an LLM judge. The release gate runs in CI without a model call: `verify` checks a committed result file.
+- **skillgrade** asks how often an agent completes a task. The agent works on real files with its tools, in Docker or locally. The skill is installed where the agent discovers it, and the pass rate is compared with a threshold.
+
+skillgrade is the better fit when the agent has to act: tasks that edit a workspace, run commands or take several turns, a skill the agent has to find on its own, or grading by scripts, rubrics and human review. It supports more agents (Gemini CLI, Codex CLI, ACP-compatible agents) and writes JSON, JUnit, CSV and Markdown reports.
+
+skill-be is the better fit when the question is whether a skill is worth shipping: its effect against a baseline, regressions on critical scenarios, and a gate that costs nothing to run in CI.
+
+Some of skillgrade's strengths are open ideas for skill-be: [deterministic graders](https://github.com/ngwes/skill-be/issues/7), [JUnit reports](https://github.com/ngwes/skill-be/issues/8), [drafting evals from a SKILL.md](https://github.com/ngwes/skill-be/issues/9), [agentic tasks](https://github.com/ngwes/skill-be/issues/10), [a discovery mode](https://github.com/ngwes/skill-be/issues/11) and [more adapters](https://github.com/ngwes/skill-be/issues/12).
 
 <!-- docs-site:skip-start -->
 ## Releasing
