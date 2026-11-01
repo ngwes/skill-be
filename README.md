@@ -31,7 +31,7 @@ The usual workflow:
 4. Run `skill-be verify` in CI. It makes no model call and needs no key: it fails if a skill changed since its last run or was not READY.
 
 <!-- docs-site:skip-start -->
-Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals)
+Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals) · [Related tools](#related-tools) · [License](#license)
 <!-- docs-site:skip-end -->
 
 ## Install
@@ -1289,20 +1289,23 @@ Good scenarios and criteria are most of the value:
 
 When a criterion fails with the skill, read the grader's answers (`*.grading-<n>.md` next to the output) before changing the skill, or run `skill-be triage`. One model with one rep is noise: keep several reps, and look at the delta between the arms, not only the score with the skill.
 
-<!-- docs-site:skip-start -->
-## Releasing
+## Related tools
 
-For maintainers. semantic-release runs on every push to `main`: it reads the conventional commits, sets the version in `package.json`, updates `CHANGELOG.md` and tags the release. It does not publish to npm.
+[skillgrade](https://github.com/mgechev/skillgrade) is an eval harness for coding agents, with or without skills. The two tools answer different questions:
 
-Publishing is the manual "Publish to npm" workflow (`.github/workflows/publish.yml`), run from `main` in the Actions tab. It uses npm trusted publishing (OIDC), so it needs no npm token.
+- **skill-be** asks whether a skill makes a model better than it is without the skill. Every scenario runs twice, without and with the skill, and the gate blocks regressions. The answer is one turn of text, graded by an LLM judge. The release gate runs in CI without a model call: `verify` checks a committed result file.
+- **skillgrade** asks how often an agent completes a task. The agent works on real files with its tools, in Docker or locally. The skill is installed where the agent discovers it, and the pass rate is compared with a threshold.
 
-npm trusted publishing can only be configured for a package that already exists, so the very first version is published by hand, from `main` after semantic-release has set its version:
+skillgrade is the better fit when the agent has to act: tasks that edit a workspace, run commands or take several turns, a skill the agent has to find on its own, or grading by scripts, rubrics and human review. It supports more agents (Gemini CLI, Codex CLI, ACP-compatible agents) and writes JSON, JUnit, CSV and Markdown reports.
 
-```sh
-npm login
-npm run build
-npm publish --access public
-```
+skill-be is the better fit when the question is whether a skill is worth shipping: its effect against a baseline, regressions on critical scenarios, and a gate that costs nothing to run in CI.
 
-Then, on npmjs.com, open the package settings and add a trusted publisher: GitHub Actions, repository `ngwes/skill-be`, workflow `publish.yml`. Every later version goes through the workflow.
-<!-- docs-site:skip-end -->
+Some of skillgrade's strengths are open ideas for skill-be: [deterministic graders](https://github.com/ngwes/skill-be/issues/7), [JUnit reports](https://github.com/ngwes/skill-be/issues/8), [drafting evals from a SKILL.md](https://github.com/ngwes/skill-be/issues/9), [agentic tasks](https://github.com/ngwes/skill-be/issues/10), [a discovery mode](https://github.com/ngwes/skill-be/issues/11) and [more adapters](https://github.com/ngwes/skill-be/issues/12).
+
+## License
+
+[Apache License 2.0](https://github.com/ngwes/skill-be/blob/main/LICENSE). Copyright 2026 ngwes.
+
+You may use, modify and redistribute skill-be for any purpose, commercial included. If you redistribute it, or a work that contains it or is derived from it, you must keep the attribution in its [NOTICE](https://github.com/ngwes/skill-be/blob/main/NOTICE) file: in a NOTICE file of your own, in your documentation, or wherever your product shows third-party notices, as section 4 of the license requires.
+
+To use skill-be without that attribution, ask ngwes for a separate license by opening an issue at https://github.com/ngwes/skill-be/issues.
