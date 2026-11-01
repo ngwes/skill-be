@@ -20,7 +20,7 @@
     "prepare": "husky"
   },
   "author": "ngwes",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
     "@ngwes/mini-fp": "^2.0.0",
@@ -47,7 +47,9 @@
   },
   "files": [
     "dist/",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "engines": {
     "node": ">=20"

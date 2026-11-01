@@ -31,7 +31,7 @@ The usual workflow:
 4. Run `skill-be verify` in CI. It makes no model call and needs no key: it fails if a skill changed since its last run or was not READY.
 
 <!-- docs-site:skip-start -->
-Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals) · [Related tools](#related-tools)
+Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals) · [Related tools](#related-tools) · [License](#license)
 <!-- docs-site:skip-end -->
 
 ## Install
@@ -1301,3 +1301,11 @@ skillgrade is the better fit when the agent has to act: tasks that edit a worksp
 skill-be is the better fit when the question is whether a skill is worth shipping: its effect against a baseline, regressions on critical scenarios, and a gate that costs nothing to run in CI.
 
 Some of skillgrade's strengths are open ideas for skill-be: [deterministic graders](https://github.com/ngwes/skill-be/issues/7), [JUnit reports](https://github.com/ngwes/skill-be/issues/8), [drafting evals from a SKILL.md](https://github.com/ngwes/skill-be/issues/9), [agentic tasks](https://github.com/ngwes/skill-be/issues/10), [a discovery mode](https://github.com/ngwes/skill-be/issues/11) and [more adapters](https://github.com/ngwes/skill-be/issues/12).
+
+## License
+
+[Apache License 2.0](https://github.com/ngwes/skill-be/blob/main/LICENSE). Copyright 2026 ngwes.
+
+You may use, modify and redistribute skill-be for any purpose, commercial included. If you redistribute it, or a work that contains it or is derived from it, you must keep the attribution in its [NOTICE](https://github.com/ngwes/skill-be/blob/main/NOTICE) file: in a NOTICE file of your own, in your documentation, or wherever your product shows third-party notices, as section 4 of the license requires.
+
+To use skill-be without that attribution, ask ngwes for a separate license by opening an issue at https://github.com/ngwes/skill-be/issues.
