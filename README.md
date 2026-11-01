@@ -1301,21 +1301,3 @@ skillgrade is the better fit when the agent has to act: tasks that edit a worksp
 skill-be is the better fit when the question is whether a skill is worth shipping: its effect against a baseline, regressions on critical scenarios, and a gate that costs nothing to run in CI.
 
 Some of skillgrade's strengths are open ideas for skill-be: [deterministic graders](https://github.com/ngwes/skill-be/issues/7), [JUnit reports](https://github.com/ngwes/skill-be/issues/8), [drafting evals from a SKILL.md](https://github.com/ngwes/skill-be/issues/9), [agentic tasks](https://github.com/ngwes/skill-be/issues/10), [a discovery mode](https://github.com/ngwes/skill-be/issues/11) and [more adapters](https://github.com/ngwes/skill-be/issues/12).
-
-<!-- docs-site:skip-start -->
-## Releasing
-
-For maintainers. semantic-release runs on every push to `main`: it reads the conventional commits, sets the version in `package.json`, updates `CHANGELOG.md` and tags the release. It does not publish to npm.
-
-Publishing is the manual "Publish to npm" workflow (`.github/workflows/publish.yml`), run from `main` in the Actions tab. It uses npm trusted publishing (OIDC), so it needs no npm token.
-
-npm trusted publishing can only be configured for a package that already exists, so the very first version is published by hand, from `main` after semantic-release has set its version:
-
-```sh
-npm login
-npm run build
-npm publish --access public
-```
-
-Then, on npmjs.com, open the package settings and add a trusted publisher: GitHub Actions, repository `ngwes/skill-be`, workflow `publish.yml`. Every later version goes through the workflow.
-<!-- docs-site:skip-end -->
