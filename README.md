@@ -1,6 +1,6 @@
 # skill-be
 
-skill-be tests Agent Skills (`SKILL.md` files) and gives a pass/fail release gate for them.
+skill-be(nchmark) tests Agent Skills (`SKILL.md` files) and gives a pass/fail release gate for them.
 
 <!-- docs-site:skip-start -->
 **Documentation:** <https://ngwes.github.io/skill-be/>
