@@ -1,6 +1,6 @@
 {
   "name": "@ngwes/skill-be",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "A CLI that benchmarks Agent Skills: baseline versus with-skill, LLM-graded and gated, on any harness.",
   "repository": {
     "type": "git",

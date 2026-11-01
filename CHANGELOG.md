@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/ngwes/skill-be/compare/v1.0.2...v1.1.0) (2026-11-01)
+
+
+### Features
+
+* explain that skill-be is short for skill benchmark ([a4ab42a](https://github.com/ngwes/skill-be/commit/a4ab42a4eae78c7c565cfff8228cc85ea45e055b))
+
 ## [1.0.2](https://github.com/ngwes/skill-be/compare/v1.0.1...v1.0.2) (2026-10-31)
 
 
