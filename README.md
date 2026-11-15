@@ -43,7 +43,7 @@ The usual workflow:
 4. Run `skill-be verify` in CI. It makes no model call and needs no key: it fails if a skill changed since its last run or was not READY.
 
 <!-- docs-site:skip-start -->
-Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals) · [Code tests](#code-tests) · [Related tools](#related-tools) · [License](#license)
+Contents: [Install](#install) · [Example: test a skill end to end](#example-test-a-skill-end-to-end) · [Example: test a skill without code](#example-test-a-skill-without-code) · [Configuration](#configuration) · [Adapters](#adapters) · [Commands](#commands) · [The release gate](#the-release-gate) · [Grading](#grading) · [Workflows](#workflows) · [Result file](#result-file) · [Checks](#checks) · [Triage](#triage) · [Writing evals](#writing-evals) · [Code tests](#code-tests) · [Related tools](#related-tools) · [Contributing](#contributing) · [License](#license)
 <!-- docs-site:skip-end -->
 
 ## Install
@@ -1858,6 +1858,10 @@ The two overlap. Two prompts in promptfoo, one with the skill text and one witho
 - [code tests](#code-tests) that run each answer in its own process, with a package list and an output contract that both arms get.
 
 promptfoo is the better fit for comparing many prompts or providers at once, for red teaming, or when skills are a small part of what you test. skill-be is the better fit when the question is whether a skill is worth shipping.
+
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/ngwes/skill-be/blob/main/CONTRIBUTING.md): how to report a problem, propose a change and open a pull request.
 
 ## License
 
